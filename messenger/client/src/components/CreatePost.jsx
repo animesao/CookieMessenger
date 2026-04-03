@@ -9,17 +9,6 @@ function fileToBase64(file) {
   });
 }
 
-// Render text with highlighted @mentions
-function HighlightedText({ text, accent }) {
-  if (!text) return null;
-  const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
-  return parts.map((part, i) =>
-    /^@[a-zA-Z0-9_]+$/.test(part)
-      ? <span key={i} style={{ color: accent, fontWeight: 600 }}>{part}</span>
-      : <span key={i}>{part}</span>
-  );
-}
-
 export default function CreatePost({ user, onPost }) {
   const [type, setType] = useState('text');
   const [content, setContent] = useState('');
