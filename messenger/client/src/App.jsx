@@ -12,6 +12,12 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Apply saved theme on mount
+  useEffect(() => {
+    const theme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+  }, []);
+
   // Connect WS as soon as we have a user/token
   useEffect(() => {
     if (user && localStorage.getItem('token')) {

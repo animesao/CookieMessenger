@@ -1,20 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket, wsSend } from '../hooks/useWebSocket';
 import {
-  Phone, PhoneOff, PhoneIncoming, Video, VideoOff,
-  Mic, MicOff, Monitor, MonitorOff, X,
+  Phone, PhoneOff, Video, VideoOff,
+  Mic, MicOff, Monitor, MonitorOff,
 } from 'lucide-react';
 
-// ── ICE servers (STUN) ────────────────────────────────────────────────────────
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
 ];
 
-// ── Ringtone via Web Audio ────────────────────────────────────────────────────
+// ── Ringtone ──────────────────────────────────────────────────────────────────
 function useRingtone() {
-  const ctx = useRef(null);
-  const nodes = useRef([]);
   const interval = useRef(null);
 
   const ring = useCallback(() => {
@@ -22,7 +20,6 @@ function useRingtone() {
     const play = () => {
       try {
         const c = new (window.AudioContext || window.webkitAudioContext)();
-        ctx.current = c;
         [0, 0.2].forEach(offset => {
           const osc = c.createOscillator();
           const gain = c.createGain();
@@ -32,8 +29,8 @@ function useRingtone() {
           gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + offset + 0.15);
           osc.start(c.currentTime + offset);
           osc.stop(c.currentTime + offset + 0.15);
-          nodes.current.push(osc);
         });
+        setTimeout(() => { try { c.close(); } catch {} }, 1000);
       } catch {}
     };
     play();
@@ -42,28 +39,28 @@ function useRingtone() {
 
   const stop = useCallback(() => {
     clearInterval(interval.current);
-    try { ctx.current?.close(); } catch {}
-    nodes.current = [];
+    interval.current = null;
   }, []);
 
   return { ring, stop };
 }
 
-// ── Main CallManager ──────────────────────────────────────────────────────────
+// ── CallManager ───────────────────────────────────────────────────────────────
 export default function CallManager({ currentUser }) {
-  // Call state
   const [callState, setCallState] = useState('idle'); // idle | calling | incoming | active
-  const [callType, setCallType] = useState('audio');  // audio | video
+  const [callType, setCallType] = useState('audio');
   const [remoteUser, setRemoteUser] = useState(null);
-  const [incomingData, setIncomingData] = useState(null);
-
-  // Media state
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [screenOn, setScreenOn] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [callError, setCallError] = useState(null);
 
-  // Refs
+  // Use refs for values needed inside callbacks to avoid stale closures
+  const callStateRef = useRef('idle');
+  const remoteUserRef = useRef(null);
+  const incomingDataRef = useRef(null);
+
   const pc = useRef(null);
   const localStream = useRef(null);
   const screenStream = useRef(null);
@@ -72,24 +69,34 @@ export default function CallManager({ currentUser }) {
   const durationTimer = useRef(null);
   const ringtone = useRingtone();
 
+  const setCallStateSync = (s) => {
+    callStateRef.current = s;
+    setCallState(s);
+  };
+
   // ── Cleanup ────────────────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     clearInterval(durationTimer.current);
+    durationTimer.current = null;
     ringtone.stop();
-    localStream.current?.getTracks().forEach(t => t.stop());
-    screenStream.current?.getTracks().forEach(t => t.stop());
+    try { localStream.current?.getTracks().forEach(t => t.stop()); } catch {}
+    try { screenStream.current?.getTracks().forEach(t => t.stop()); } catch {}
     localStream.current = null;
     screenStream.current = null;
-    pc.current?.close();
+    try { pc.current?.close(); } catch {}
     pc.current = null;
-    setCallState('idle');
+    remoteUserRef.current = null;
+    incomingDataRef.current = null;
+    setCallStateSync('idle');
     setCallDuration(0);
     setMicOn(true); setCamOn(true); setScreenOn(false);
-    setRemoteUser(null); setIncomingData(null);
+    setRemoteUser(null);
   }, [ringtone]);
 
   // ── Create PeerConnection ──────────────────────────────────────────────────
   const createPC = useCallback((targetId) => {
+    if (pc.current) { try { pc.current.close(); } catch {} }
+
     const conn = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     conn.onicecandidate = (e) => {
@@ -97,39 +104,47 @@ export default function CallManager({ currentUser }) {
     };
 
     conn.ontrack = (e) => {
-      if (remoteVideoRef.current) {
+      if (remoteVideoRef.current && e.streams[0]) {
         remoteVideoRef.current.srcObject = e.streams[0];
       }
     };
 
     conn.onconnectionstatechange = () => {
       if (['disconnected', 'failed', 'closed'].includes(conn.connectionState)) {
-        endCall();
+        // Send end signal to remote before cleanup
+        const ru = remoteUserRef.current;
+        const id = incomingDataRef.current;
+        if (ru) wsSend('call_end', ru.id, {});
+        else if (id) wsSend('call_end', id.from, {});
+        cleanup();
       }
     };
 
     pc.current = conn;
     return conn;
-  }, []);
+  }, [cleanup]);
 
   // ── Get local media ────────────────────────────────────────────────────────
   const getMedia = useCallback(async (type) => {
-    const constraints = {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Для звонков требуется HTTPS. Откройте сайт по защищённому соединению.');
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: type === 'video' ? { width: 1280, height: 720 } : false,
-    };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video: type === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false,
+    });
     localStream.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     return stream;
   }, []);
 
-  // ── Initiate call ──────────────────────────────────────────────────────────
+  // ── Start call ─────────────────────────────────────────────────────────────
   const startCall = useCallback(async (targetUser, type = 'audio') => {
-    if (callState !== 'idle') return;
-    setCallState('calling');
+    if (callStateRef.current !== 'idle') return;
+    setCallStateSync('calling');
     setCallType(type);
     setRemoteUser(targetUser);
+    remoteUserRef.current = targetUser;
 
     try {
       const stream = await getMedia(type);
@@ -147,48 +162,51 @@ export default function CallManager({ currentUser }) {
         callerAccent: currentUser.accent_color,
       });
     } catch (err) {
-      console.error('Call error:', err);
+      console.error('[Call] startCall error:', err);
+      setCallError(err.message || 'Ошибка звонка');
       cleanup();
     }
-  }, [callState, getMedia, createPC, currentUser, cleanup]);
+  }, [getMedia, createPC, currentUser, cleanup]);
 
   // ── Answer call ────────────────────────────────────────────────────────────
   const answerCall = useCallback(async () => {
-    if (!incomingData) return;
+    const incoming = incomingDataRef.current;
+    if (!incoming) return;
     ringtone.stop();
-    setCallState('active');
+    setCallStateSync('active');
 
     try {
-      const stream = await getMedia(incomingData.type);
-      const conn = createPC(incomingData.from);
+      const stream = await getMedia(incoming.type || 'audio');
+      const conn = createPC(incoming.from);
       stream.getTracks().forEach(t => conn.addTrack(t, stream));
 
-      await conn.setRemoteDescription(new RTCSessionDescription(incomingData.offer));
+      await conn.setRemoteDescription(new RTCSessionDescription(incoming.offer));
       const answer = await conn.createAnswer();
       await conn.setLocalDescription(answer);
 
-      wsSend('call_answer', incomingData.from, { answer });
-
-      // Start timer
+      wsSend('call_answer', incoming.from, { answer });
       durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
     } catch (err) {
-      console.error('Answer error:', err);
+      console.error('[Call] answerCall error:', err);
       cleanup();
     }
-  }, [incomingData, ringtone, getMedia, createPC, cleanup]);
+  }, [ringtone, getMedia, createPC, cleanup]);
 
-  // ── Reject incoming call ───────────────────────────────────────────────────
+  // ── Reject ─────────────────────────────────────────────────────────────────
   const rejectCall = useCallback(() => {
-    if (incomingData) wsSend('call_reject', incomingData.from, {});
+    const incoming = incomingDataRef.current;
+    if (incoming) wsSend('call_reject', incoming.from, {});
     cleanup();
-  }, [incomingData, cleanup]);
+  }, [cleanup]);
 
-  // ── End active call ────────────────────────────────────────────────────────
+  // ── End call ───────────────────────────────────────────────────────────────
   const endCall = useCallback(() => {
-    if (remoteUser) wsSend('call_end', remoteUser.id, {});
-    else if (incomingData) wsSend('call_end', incomingData.from, {});
+    const ru = remoteUserRef.current;
+    const id = incomingDataRef.current;
+    if (ru) wsSend('call_end', ru.id, {});
+    else if (id) wsSend('call_end', id.from, {});
     cleanup();
-  }, [remoteUser, incomingData, cleanup]);
+  }, [cleanup]);
 
   // ── Toggle mic ─────────────────────────────────────────────────────────────
   const toggleMic = () => {
@@ -205,194 +223,168 @@ export default function CallManager({ currentUser }) {
   // ── Screen share ───────────────────────────────────────────────────────────
   const toggleScreen = async () => {
     if (!pc.current) return;
-
     if (screenOn) {
-      // Stop screen share, restore camera
       screenStream.current?.getTracks().forEach(t => t.stop());
       screenStream.current = null;
       const videoTrack = localStream.current?.getVideoTracks()[0];
       if (videoTrack) {
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-        sender?.replaceTrack(videoTrack);
+        await sender?.replaceTrack(videoTrack);
         if (localVideoRef.current) localVideoRef.current.srcObject = localStream.current;
       }
       setScreenOn(false);
     } else {
       try {
-        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         screenStream.current = screen;
         const screenTrack = screen.getVideoTracks()[0];
-
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) {
-          await sender.replaceTrack(screenTrack);
-        } else {
-          pc.current.addTrack(screenTrack, screen);
-        }
-
+        if (sender) await sender.replaceTrack(screenTrack);
+        else pc.current.addTrack(screenTrack, screen);
         if (localVideoRef.current) localVideoRef.current.srcObject = screen;
-
         screenTrack.onended = () => toggleScreen();
         setScreenOn(true);
       } catch {}
     }
   };
 
-  // ── WebSocket signaling events ─────────────────────────────────────────────
+  // ── WS signaling ──────────────────────────────────────────────────────────
   useWebSocket({
     call_offer: (data) => {
-      if (callState !== 'idle') {
+      if (callStateRef.current !== 'idle') {
         wsSend('call_busy', data.from, {});
         return;
       }
-      setIncomingData(data);
+      incomingDataRef.current = data;
       setCallType(data.type || 'audio');
-      setRemoteUser({
-        id: data.from,
-        display_name: data.callerName,
-        avatar: data.callerAvatar,
-        accent_color: data.callerAccent,
-      });
-      setCallState('incoming');
+      const ru = { id: data.from, display_name: data.callerName, avatar: data.callerAvatar, accent_color: data.callerAccent };
+      remoteUserRef.current = ru;
+      setRemoteUser(ru);
+      setCallStateSync('incoming');
       ringtone.ring();
     },
 
     call_answer: async (data) => {
       if (!pc.current) return;
-      await pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-      setCallState('active');
-      durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      try {
+        await pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        setCallStateSync('active');
+        durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      } catch (err) {
+        console.error('[Call] setRemoteDescription error:', err);
+        cleanup();
+      }
     },
 
     call_ice: async (data) => {
       try {
-        if (pc.current && data.candidate) {
+        if (pc.current && data.candidate && pc.current.remoteDescription) {
           await pc.current.addIceCandidate(new RTCIceCandidate(data.candidate));
         }
       } catch {}
     },
 
-    call_reject: () => {
-      cleanup();
-    },
-
-    call_end: () => {
-      cleanup();
-    },
-
-    call_busy: () => {
-      cleanup();
-    },
+    call_reject: () => { cleanup(); },
+    call_end:    () => { cleanup(); },
+    call_busy:   () => { cleanup(); },
   });
 
-  // Expose startCall globally so Messages.jsx can trigger it
+  // Expose startCall globally — use ref to avoid stale closure issues
+  const startCallRef = useRef(startCall);
+  useEffect(() => { startCallRef.current = startCall; }, [startCall]);
+
   useEffect(() => {
-    window.__startCall = startCall;
+    window.__startCall = (...args) => startCallRef.current(...args);
     return () => { delete window.__startCall; };
-  }, [startCall]);
+  }, []); // mount once only
 
-  // Format duration
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
-  const accent = remoteUser?.accent_color || currentUser.accent_color || '#fff';
+  const accent = remoteUser?.accent_color || currentUser?.accent_color || '#fff';
   const remoteName = remoteUser?.display_name || remoteUser?.username || '...';
 
-  if (callState === 'idle') return null;
+  if (callState === 'idle' && !callError) return null;
+
+  if (callError) return (
+    <div className="call-overlay">
+      <div className="call-modal call-modal--incoming">
+        <p className="call-label" style={{ color: '#ff6b6b', marginBottom: 12 }}>⚠️ {callError}</p>
+        <button className="call-btn call-btn--reject" onClick={() => setCallError(null)}>
+          <PhoneOff size={22} />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="call-overlay">
-      {/* ── Incoming call ── */}
+      {/* Incoming */}
       {callState === 'incoming' && (
         <div className="call-modal call-modal--incoming">
           <div className="call-avatar-wrap">
-            <div className="call-avatar" style={{
-              backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined,
-              borderColor: accent,
-            }}>
+            <div className="call-avatar" style={{ backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined, borderColor: accent }}>
               {!remoteUser?.avatar && remoteName[0]?.toUpperCase()}
             </div>
           </div>
           <p className="call-label">Входящий {callType === 'video' ? 'видео' : 'аудио'} звонок</p>
           <h3 className="call-name" style={{ color: accent }}>{remoteName}</h3>
           <div className="call-actions">
-            <button className="call-btn call-btn--reject" onClick={rejectCall} title="Отклонить">
-              <PhoneOff size={22} />
-            </button>
-            <button className="call-btn call-btn--accept" onClick={answerCall} title="Принять">
+            <button className="call-btn call-btn--reject" onClick={rejectCall}><PhoneOff size={22} /></button>
+            <button className="call-btn call-btn--accept" onClick={answerCall}>
               {callType === 'video' ? <Video size={22} /> : <Phone size={22} />}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Calling (outgoing, waiting) ── */}
+      {/* Calling */}
       {callState === 'calling' && (
         <div className="call-modal call-modal--calling">
           <div className="call-avatar-wrap">
-            <div className="call-avatar call-avatar--pulse" style={{
-              backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined,
-              borderColor: accent,
-            }}>
+            <div className="call-avatar call-avatar--pulse" style={{ backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined, borderColor: accent }}>
               {!remoteUser?.avatar && remoteName[0]?.toUpperCase()}
             </div>
           </div>
           <h3 className="call-name" style={{ color: accent }}>{remoteName}</h3>
           <p className="call-label">Вызов...</p>
           <div className="call-actions">
-            <button className="call-btn call-btn--reject" onClick={endCall} title="Отменить">
-              <PhoneOff size={22} />
-            </button>
+            <button className="call-btn call-btn--reject" onClick={endCall}><PhoneOff size={22} /></button>
           </div>
         </div>
       )}
 
-      {/* ── Active call ── */}
+      {/* Active */}
       {callState === 'active' && (
         <div className="call-active">
-          {/* Remote video (full bg) */}
           <video ref={remoteVideoRef} className="call-remote-video" autoPlay playsInline />
-
-          {/* No video placeholder */}
           {callType === 'audio' && (
             <div className="call-audio-bg">
-              <div className="call-avatar call-avatar--lg" style={{
-                backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined,
-                borderColor: accent,
-              }}>
+              <div className="call-avatar call-avatar--lg" style={{ backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined, borderColor: accent }}>
                 {!remoteUser?.avatar && remoteName[0]?.toUpperCase()}
               </div>
               <h3 className="call-name" style={{ color: accent }}>{remoteName}</h3>
             </div>
           )}
-
-          {/* Local video (PiP) */}
           {(callType === 'video' || screenOn) && (
             <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
           )}
-
-          {/* HUD */}
           <div className="call-hud">
             <div className="call-hud-info">
               <span className="call-hud-name" style={{ color: accent }}>{remoteName}</span>
               <span className="call-hud-timer">{fmt(callDuration)}</span>
             </div>
-
             <div className="call-controls">
-              <button className={`call-ctrl ${!micOn ? 'call-ctrl--off' : ''}`} onClick={toggleMic} title={micOn ? 'Выкл. микрофон' : 'Вкл. микрофон'}>
+              <button className={`call-ctrl ${!micOn ? 'call-ctrl--off' : ''}`} onClick={toggleMic}>
                 {micOn ? <Mic size={18} /> : <MicOff size={18} />}
               </button>
-
               {callType === 'video' && (
-                <button className={`call-ctrl ${!camOn ? 'call-ctrl--off' : ''}`} onClick={toggleCam} title={camOn ? 'Выкл. камеру' : 'Вкл. камеру'}>
+                <button className={`call-ctrl ${!camOn ? 'call-ctrl--off' : ''}`} onClick={toggleCam}>
                   {camOn ? <Video size={18} /> : <VideoOff size={18} />}
                 </button>
               )}
-
-              <button className={`call-ctrl ${screenOn ? 'call-ctrl--active' : ''}`} onClick={toggleScreen} title={screenOn ? 'Остановить демонстрацию' : 'Демонстрация экрана'}>
+              <button className={`call-ctrl ${screenOn ? 'call-ctrl--active' : ''}`} onClick={toggleScreen}>
                 {screenOn ? <MonitorOff size={18} /> : <Monitor size={18} />}
               </button>
-
-              <button className="call-ctrl call-ctrl--end" onClick={endCall} title="Завершить">
+              <button className="call-ctrl call-ctrl--end" onClick={endCall}>
                 <PhoneOff size={18} />
               </button>
             </div>

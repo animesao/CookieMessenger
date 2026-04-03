@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bell, Lock, Mail, Key, Trash2, ChevronRight,
-  Eye, EyeOff, Check, AlertTriangle, Shield, User
+  Eye, EyeOff, Check, AlertTriangle, Shield, User, Sun, Moon
 } from 'lucide-react';
 
 function Toggle({ checked, onChange }) {
@@ -42,6 +42,15 @@ function SettingRow({ icon, label, desc, right, onClick, danger }) {
 
 export default function Settings({ user, onUpdate, onLogout }) {
   const token = () => localStorage.getItem('token');
+
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // loaded settings
   const [notif, setNotif] = useState({ notif_messages: true, notif_mentions: true, notif_updates: true });
@@ -159,6 +168,16 @@ export default function Settings({ user, onUpdate, onLogout }) {
           {msg.text}
         </div>
       )}
+
+      {/* Appearance */}
+      <Section title="Внешний вид">
+        <SettingRow
+          icon={theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
+          label={theme === 'dark' ? 'Тёмная тема' : 'Светлая тема'}
+          desc="Переключить оформление"
+          right={<Toggle checked={theme === 'light'} onChange={toggleTheme} />}
+        />
+      </Section>
 
       {/* Notifications */}
       <Section title="Уведомления">

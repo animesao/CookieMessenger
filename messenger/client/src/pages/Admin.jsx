@@ -3,7 +3,7 @@ import {
   Users, MessageSquare, FileText, Heart, UserCheck, TrendingUp,
   Wifi, Shield, Trash2, Ban, CheckCircle, Search, X, Send,
   BarChart2, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight,
-  UserX, Megaphone, Eye, Clock,
+  UserX, Megaphone, Eye, Clock, Crown,
 } from 'lucide-react';
 
 const ADMIN_EMAIL = 'yamekel0@gmail.com';
@@ -403,6 +403,176 @@ function BroadcastTab({ accent }) {
   );
 }
 
+// ── Roles tab ─────────────────────────────────────────────────────────────────
+function RolesTab({ accent }) {
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [flash, setFlash] = useState(null);
+  const [assigning, setAssigning] = useState({}); // userId -> true
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [ur, rr] = await Promise.all([
+      api('/api/roles/users'),
+      api('/api/roles/list'),
+    ]);
+    if (ur.ok) setUsers(await ur.json());
+    if (rr.ok) setRoles(await rr.json());
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, []);
+
+  const showFlash = (msg, ok = true) => {
+    setFlash({ msg, ok });
+    setTimeout(() => setFlash(null), 3000);
+  };
+
+  const handleAssign = async (userId, role) => {
+    setAssigning(a => ({ ...a, [userId]: true }));
+    const res = await api('/api/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setUsers(prev => prev.map(u => u.id === userId
+        ? { ...u, role: data.role, roleLabel: data.roleLabel, roleColor: data.roleColor }
+        : u
+      ));
+      showFlash('Роль обновлена');
+    } else {
+      const err = await res.json();
+      showFlash(err.error || 'Ошибка', false);
+    }
+    setAssigning(a => ({ ...a, [userId]: false }));
+  };
+
+  const filtered = users.filter(u =>
+    !search || u.username.toLowerCase().includes(search.toLowerCase()) ||
+    (u.display_name || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="adm-tab-content">
+      {flash && <div className={`adm-flash ${flash.ok ? 'adm-flash-ok' : 'adm-flash-err'}`}>{flash.msg}</div>}
+
+      {/* Roles legend */}
+      <div className="adm-roles-legend">
+        {roles.map(r => (
+          <div key={r.id} className="adm-role-badge-info" style={{ borderColor: r.color, color: r.color }}>
+            <Crown size={11} /> {r.label}
+            <span className="adm-role-perms">{r.permissions.length} прав</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="adm-toolbar">
+        <div className="adm-search">
+          <Search size={14} />
+          <input
+            placeholder="Поиск пользователя..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && <button onClick={() => setSearch('')}><X size={12} /></button>}
+        </div>
+        <button className="adm-btn adm-btn-ghost" onClick={load}><RefreshCw size={14} /> Обновить</button>
+      </div>
+
+      <div className="adm-table-wrap">
+        <table className="adm-table">
+          <thead>
+            <tr>
+              <th>Пользователь</th>
+              <th>Email</th>
+              <th>Текущая роль</th>
+              <th>Назначить роль</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={4} className="adm-table-loading">Загрузка...</td></tr>}
+            {!loading && filtered.map(u => (
+              <tr key={u.id}>
+                <td>
+                  <div className="adm-user-cell">
+                    <div className="adm-user-avatar"
+                      style={{ backgroundImage: u.avatar ? `url(${u.avatar})` : undefined, borderColor: u.accent_color || '#fff' }}>
+                      {!u.avatar && (u.display_name || u.username)[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <span className="adm-user-name" style={{ color: u.accent_color || '#fff' }}>
+                        {u.display_name || u.username}
+                      </span>
+                      <span className="adm-user-username">@{u.username}</span>
+                    </div>
+                  </div>
+                </td>
+                <td className="adm-cell-muted">{u.email}</td>
+                <td>
+                  <span className="adm-role-current" style={{ color: u.roleColor, borderColor: u.roleColor }}>
+                    <Crown size={11} /> {u.roleLabel}
+                  </span>
+                </td>
+                <td>
+                  <div className="adm-role-select-row">
+                    {roles.map(r => (
+                      <button
+                        key={r.id}
+                        className={`adm-role-btn ${u.role === r.id ? 'active' : ''}`}
+                        style={u.role === r.id ? { background: r.color + '22', borderColor: r.color, color: r.color } : { borderColor: r.color + '55', color: r.color + '99' }}
+                        onClick={() => u.role !== r.id && handleAssign(u.id, r.id)}
+                        disabled={assigning[u.id] || u.role === r.id}
+                        title={r.label}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Permissions reference */}
+      <div className="adm-section" style={{ marginTop: 24 }}>
+        <h3 className="adm-section-title"><Shield size={14} /> Права по ролям</h3>
+        <div className="adm-perms-grid">
+          {roles.map(r => (
+            <div key={r.id} className="adm-perms-card" style={{ borderColor: r.color + '44' }}>
+              <div className="adm-perms-title" style={{ color: r.color }}><Crown size={13} /> {r.label}</div>
+              {r.permissions.length === 0
+                ? <span className="adm-cell-muted">Базовые права</span>
+                : r.permissions.map(p => (
+                  <div key={p} className="adm-perm-item">
+                    <CheckCircle size={11} style={{ color: r.color }} />
+                    <span>{{ 
+                      post_images: 'Публиковать фото',
+                      post_videos: 'Публиковать видео',
+                      post_polls: 'Создавать опросы',
+                      custom_accent: 'Кастомный цвет',
+                      delete_posts: 'Удалять посты',
+                      ban_users: 'Банить пользователей',
+                      manage_roles: 'Управлять ролями',
+                      broadcast: 'Рассылка',
+                      delete_users: 'Удалять аккаунты',
+                      owner: 'Полный доступ',
+                    }[p] || p}</span>
+                  </div>
+                ))
+              }
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Admin page ───────────────────────────────────────────────────────────
 export default function Admin({ user, onBack }) {
   const [tab, setTab] = useState('stats');
@@ -422,6 +592,7 @@ export default function Admin({ user, onBack }) {
   const TABS = [
     { id: 'stats',     label: 'Статистика',  icon: BarChart2 },
     { id: 'users',     label: 'Пользователи', icon: Users },
+    { id: 'roles',     label: 'Роли',         icon: Crown },
     { id: 'posts',     label: 'Посты',        icon: FileText },
     { id: 'broadcast', label: 'Рассылка',     icon: Megaphone },
   ];
@@ -520,6 +691,7 @@ export default function Admin({ user, onBack }) {
         )}
 
         {tab === 'users'     && <UsersTab accent={accent} />}
+        {tab === 'roles'     && <RolesTab accent={accent} />}
         {tab === 'posts'     && <PostsTab accent={accent} />}
         {tab === 'broadcast' && <BroadcastTab accent={accent} />}
       </main>
