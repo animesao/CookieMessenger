@@ -105,10 +105,9 @@ export default function Profile({ user, onUpdate, onLogout }) {
 
   const handleVote = async (postId, optionId) => {
     const token = localStorage.getItem('token');
-    const res = await fetch(`/api/feed/${postId}/vote`, {
+    const res = await fetch(`/api/feed/poll/${optionId}/vote`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ optionId }),
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
       const data = await res.json();

@@ -67,6 +67,23 @@ function setup(server) {
 
         // Only relay whitelisted signaling events
         if (ALLOWED_SIGNALING.has(msg.event) && msg.to && Number.isInteger(msg.to)) {
+          // Check call privacy for incoming calls
+          if (msg.event === 'call_offer') {
+            const db = require('./db');
+            const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
+            if (target) {
+              const setting = target.privacy_who_can_call || 'friends';
+              if (setting === 'nobody') return;
+              if (setting === 'friends') {
+                const areFriends = !!db.prepare(`
+                  SELECT 1 FROM friendships
+                  WHERE ((requester_id=? AND addressee_id=?) OR (requester_id=? AND addressee_id=?))
+                  AND status='accepted'
+                `).get(userId, msg.to, msg.to, userId);
+                if (!areFriends) return;
+              }
+            }
+          }
           sendTo(msg.to, msg.event, { ...msg.data, from: userId });
         }
       } catch {}
@@ -95,6 +112,14 @@ function sendTo(userIds, event, data) {
 }
 
 function broadcast(event, data) {
+  // For user_online/user_offline — respect privacy_show_online
+  if (event === 'user_online' || event === 'user_offline') {
+    try {
+      const db = require('./db');
+      const u = db.prepare('SELECT privacy_show_online FROM users WHERE id = ?').get(data.userId);
+      if (u && u.privacy_show_online === 0) return; // don't broadcast if hidden
+    } catch {}
+  }
   const msg = JSON.stringify({ event, data });
   clients.forEach(sockets => {
     sockets.forEach(ws => {
