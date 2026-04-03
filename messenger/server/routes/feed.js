@@ -162,8 +162,15 @@ router.get('/mention-search', auth, (req, res) => {
 });
 
 router.post('/poll/:optionId/vote', auth, (req, res) => {
-  const option = db.prepare('SELECT * FROM poll_options WHERE id = ?').get(req.params.optionId);
+  const optionId = parseInt(req.params.optionId);
+  if (isNaN(optionId)) return res.status(400).json({ error: 'Неверный ID опции' });
+
+  const option = db.prepare('SELECT * FROM poll_options WHERE id = ?').get(optionId);
   if (!option) return res.status(404).json({ error: 'Вариант не найден' });
+
+  // Check post still exists
+  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(option.post_id);
+  if (!post) return res.status(404).json({ error: 'Пост удалён' });
 
   const existing = db.prepare(`
     SELECT pv.* FROM poll_votes pv
@@ -172,14 +179,14 @@ router.post('/poll/:optionId/vote', auth, (req, res) => {
   `).get(option.post_id, req.user.id);
 
   if (existing) {
-    if (existing.option_id === parseInt(req.params.optionId)) {
-      db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(req.params.optionId, req.user.id);
+    if (existing.option_id === optionId) {
+      db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(optionId, req.user.id);
     } else {
       db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(existing.option_id, req.user.id);
-      db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(req.params.optionId, req.user.id);
+      db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
     }
   } else {
-    db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(req.params.optionId, req.user.id);
+    db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
   }
 
   const options = db.prepare('SELECT * FROM poll_options WHERE post_id = ?').all(option.post_id);

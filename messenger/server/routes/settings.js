@@ -27,9 +27,12 @@ router.put('/privacy', auth, (req, res) => {
   } = req.body;
 
   const allowed = ['friends', 'everyone', 'nobody'];
+  const allowedAdd = ['everyone', 'nobody'];
   if (privacy_who_can_message && !allowed.includes(privacy_who_can_message))
     return res.status(400).json({ error: 'Неверное значение' });
   if (privacy_who_can_call && !allowed.includes(privacy_who_can_call))
+    return res.status(400).json({ error: 'Неверное значение' });
+  if (privacy_who_can_add && !allowedAdd.includes(privacy_who_can_add))
     return res.status(400).json({ error: 'Неверное значение' });
 
   db.prepare(`
