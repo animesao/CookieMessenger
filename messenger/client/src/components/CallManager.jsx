@@ -86,6 +86,7 @@ export default function CallManager({ currentUser }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const durationTimer = useRef(null);
+  const callTimeout = useRef(null);
   const ringtone = useRingtone();
 
   const setCallStateSync = (s) => {
@@ -96,7 +97,9 @@ export default function CallManager({ currentUser }) {
   // ── Cleanup ────────────────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     clearInterval(durationTimer.current);
+    clearTimeout(callTimeout.current);
     durationTimer.current = null;
+    callTimeout.current = null;
     ringtone.stop();
     try { localStream.current?.getTracks().forEach(t => t.stop()); } catch {}
     try { screenStream.current?.getTracks().forEach(t => t.stop()); } catch {}
@@ -228,34 +231,28 @@ export default function CallManager({ currentUser }) {
       });
       await conn.setLocalDescription(offer);
 
-      // Send offer — only if WS is open
-      const sendOffer = () => {
-        wsSend('call_offer', targetUser.id, {
-          offer,
-          type,
-          callerName: currentUser.display_name || currentUser.username,
-          callerAvatar: currentUser.avatar,
-          callerAccent: currentUser.accent_color,
-        });
-      };
+      // Send offer — check WS is open
+      if (wsReadyState() !== 1) {
+        setCallError('Нет соединения. Попробуйте снова.');
+        cleanup();
+        return;
+      }
 
-      // Retry sending offer up to 5 times with 500ms interval
-      let sent = false;
-      let attempts = 0;
-      const trySend = () => {
-        if (sent || callStateRef.current !== 'calling') return;
-        attempts++;
-        if (wsReadyState() === 1) { // WebSocket.OPEN = 1
-          sendOffer();
-          sent = true;
-        } else if (attempts < 10) {
-          setTimeout(trySend, 500);
-        } else {
-          setCallError('Нет соединения. Попробуйте снова.');
+      wsSend('call_offer', targetUser.id, {
+        offer,
+        type,
+        callerName: currentUser.display_name || currentUser.username,
+        callerAvatar: currentUser.avatar,
+        callerAccent: currentUser.accent_color,
+      });
+
+      // Timeout: 30 seconds for answer
+      callTimeout.current = setTimeout(() => {
+        if (callStateRef.current === 'calling') {
+          setCallError('Нет ответа');
           cleanup();
         }
-      };
-      trySend();
+      }, 30000);
 
     } catch (err) {
       console.error('[Call] startCall error:', err);
@@ -268,6 +265,7 @@ export default function CallManager({ currentUser }) {
   const answerCall = useCallback(async () => {
     const incoming = incomingDataRef.current;
     if (!incoming) return;
+    clearTimeout(callTimeout.current);
     ringtone.stop();
     setCallStateSync('active');
 
@@ -288,7 +286,7 @@ export default function CallManager({ currentUser }) {
       durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
     } catch (err) {
       console.error('[Call] answerCall error:', err);
-      setCallError('Ошибка при ответе на звонок');
+      setCallError(err.message || 'Ошибка при ответе на звонок');
       cleanup();
     }
   }, [ringtone, getMedia, createPC, flushIceCandidates, cleanup]);
@@ -368,10 +366,19 @@ export default function CallManager({ currentUser }) {
       setRemoteUser(ru);
       setCallStateSync('incoming');
       ringtone.ring();
+
+      // Timeout: 45 seconds for incoming call
+      callTimeout.current = setTimeout(() => {
+        if (callStateRef.current === 'incoming') {
+          wsSend('call_reject', data.from, {});
+          cleanup();
+        }
+      }, 45000);
     },
 
     call_answer: async (data) => {
       if (!pc.current) return;
+      clearTimeout(callTimeout.current);
       try {
         await pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
         await flushIceCandidates();
@@ -379,6 +386,7 @@ export default function CallManager({ currentUser }) {
         durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
       } catch (err) {
         console.error('[Call] setRemoteDescription error:', err);
+        setCallError('Ошибка соединения');
         cleanup();
       }
     },
@@ -392,12 +400,24 @@ export default function CallManager({ currentUser }) {
           // Buffer until remote description is set
           iceCandidateBuffer.current.push(data.candidate);
         }
-      } catch {}
+      } catch (err) {
+        console.error('[Call] ICE candidate error:', err);
+      }
     },
 
-    call_reject: () => { cleanup(); },
-    call_end:    () => { cleanup(); },
-    call_busy:   () => { cleanup(); },
+    call_reject: () => {
+      setCallError('Звонок отклонён');
+      cleanup();
+    },
+
+    call_end: () => {
+      cleanup();
+    },
+
+    call_busy: () => {
+      setCallError('Абонент занят');
+      cleanup();
+    },
   });
 
   // Expose startCall globally
