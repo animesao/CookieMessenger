@@ -175,6 +175,13 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
             {!isMe && (
               <div className="up-actions">
                 <button
+                  className="up-msg-btn"
+                  onClick={() => onOpenChat?.(profile)}
+                  title="Написать сообщение"
+                >
+                  <MessageSquare size={14} /> Написать
+                </button>
+                <button
                   className={`up-follow-btn ${profile.isFollowing ? 'up-follow-btn--active' : ''}`}
                   style={profile.isFollowing ? { borderColor: accent, color: accent } : {}}
                   onClick={handleFollow}

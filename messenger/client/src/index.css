@@ -1251,8 +1251,9 @@ body {
 .post-media img, .post-media video {
   width: 100%;
   max-height: 480px;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  background: #000;
 }
 
 /* Poll */
@@ -2379,6 +2380,24 @@ body {
 }
 
 .up-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+.up-msg-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.up-msg-btn:hover { background: #e8e8e8; }
 
 .up-follow-btn {
   display: flex;
