@@ -67,27 +67,37 @@ function setup(server) {
 
         // Only relay whitelisted signaling events
         if (ALLOWED_SIGNALING.has(msg.event) && msg.to && Number.isInteger(msg.to)) {
-          console.log(`[WS] ${msg.event} from ${userId} to ${msg.to}`);
+          console.log(`[WS] ${msg.event} from ${userId} to ${msg.to}, target online: ${clients.has(msg.to)}`);
+          
           // Privacy check only for INITIATING a call (call_offer)
           if (msg.event === 'call_offer') {
             const db = require('./db');
             const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
             const setting = target?.privacy_who_can_call || 'everyone';
-            console.log(`[WS] call_offer: target privacy=${setting}, target online=${clients.has(msg.to)}`);
-            if (setting === 'nobody') { console.log('[WS] blocked by privacy=nobody'); return; }
+            console.log(`[WS] call_offer: target privacy=${setting}`);
+            if (setting === 'nobody') {
+              console.log('[WS] blocked by privacy=nobody');
+              return;
+            }
             if (setting === 'friends') {
               const areFriends = !!db.prepare(`
                 SELECT 1 FROM friendships
                 WHERE ((requester_id=? AND addressee_id=?) OR (requester_id=? AND addressee_id=?))
                 AND status='accepted'
               `).get(userId, msg.to, msg.to, userId);
-              if (!areFriends) { console.log('[WS] blocked by privacy=friends, not friends'); return; }
+              if (!areFriends) {
+                console.log('[WS] blocked by privacy=friends, not friends');
+                return;
+              }
             }
           }
+          
           const sent = sendTo(msg.to, msg.event, { ...msg.data, from: userId });
-          console.log(`[WS] ${msg.event} delivered to ${msg.to}: ${clients.has(msg.to)}`);
+          console.log(`[WS] ${msg.event} ${sent ? 'delivered' : 'FAILED to deliver'} to ${msg.to}`);
         }
-      } catch {}
+      } catch (err) {
+        console.error('[WS] Message handling error:', err);
+      }
     });
 
     ws.on('close', () => {
@@ -105,11 +115,19 @@ function setup(server) {
 function sendTo(userIds, event, data) {
   const ids = Array.isArray(userIds) ? userIds : [userIds];
   const msg = JSON.stringify({ event, data });
+  let sent = 0;
   ids.forEach(uid => {
-    clients.get(uid)?.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(msg);
-    });
+    const sockets = clients.get(uid);
+    if (sockets) {
+      sockets.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(msg);
+          sent++;
+        }
+      });
+    }
   });
+  return sent > 0;
 }
 
 function broadcast(event, data) {
