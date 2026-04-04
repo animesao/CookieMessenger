@@ -93,6 +93,7 @@ export default function CallManager({ currentUser }) {
   const screenStream = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const durationTimer = useRef(null);
   const callTimeout = useRef(null);
   const ringtone = useRingtone();
@@ -183,9 +184,33 @@ export default function CallManager({ currentUser }) {
     };
 
     conn.ontrack = (e) => {
-      console.log('[Call] Received remote track');
-      if (remoteVideoRef.current && e.streams[0]) {
-        remoteVideoRef.current.srcObject = e.streams[0];
+      console.log('[Call] Received remote track:', e.track.kind, e.track.id);
+      console.log('[Call] Remote streams:', e.streams.length);
+      
+      if (e.streams[0]) {
+        const stream = e.streams[0];
+        console.log('[Call] Remote stream tracks:', stream.getTracks().map(t => ({
+          kind: t.kind,
+          id: t.id,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState,
+        })));
+        
+        // Set stream to both video and audio elements
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(err => {
+            console.error('[Call] Remote video play error:', err);
+          });
+        }
+        
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(err => {
+            console.error('[Call] Remote audio play error:', err);
+          });
+        }
       }
     };
 
@@ -614,7 +639,23 @@ export default function CallManager({ currentUser }) {
       {/* Active */}
       {callState === 'active' && (
         <div className="call-active">
-          <video ref={remoteVideoRef} className="call-remote-video" autoPlay playsInline />
+          {/* Always render audio element for remote audio */}
+          <audio 
+            ref={remoteAudioRef} 
+            autoPlay 
+            playsInline
+            style={{ display: 'none' }}
+          />
+          
+          {/* Video element for video calls */}
+          <video 
+            ref={remoteVideoRef} 
+            className="call-remote-video" 
+            autoPlay 
+            playsInline 
+            style={{ display: callType === 'video' ? 'block' : 'none' }}
+          />
+          
           {callType === 'audio' && (
             <div className="call-audio-bg">
               <div className="call-avatar call-avatar--lg" style={{ backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined, borderColor: accent }}>
