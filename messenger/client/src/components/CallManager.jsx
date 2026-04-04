@@ -200,33 +200,60 @@ export default function CallManager({ currentUser }) {
       throw new Error('Для звонков требуется HTTPS');
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      video: type === 'video' ? {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
-      } : false,
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1,
+        },
+        video: type === 'video' ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        } : false,
+      });
 
-    // Verify audio track is active
-    const audioTracks = stream.getAudioTracks();
-    console.log('[Call] Audio tracks:', audioTracks.length, audioTracks.map(t => ({
-      id: t.id,
-      enabled: t.enabled,
-      muted: t.muted,
-      readyState: t.readyState,
-    })));
+      // Verify audio track is active
+      const audioTracks = stream.getAudioTracks();
+      console.log('[Call] Audio tracks:', audioTracks.length);
+      
+      audioTracks.forEach((track, i) => {
+        console.log(`[Call] Audio track ${i}:`, {
+          id: track.id,
+          label: track.label,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          settings: track.getSettings(),
+        });
+        
+        // Ensure track is enabled
+        track.enabled = true;
+      });
 
-    localStream.current = stream;
-    if (localVideoRef.current && type === 'video') {
-      localVideoRef.current.srcObject = stream;
+      if (audioTracks.length === 0) {
+        throw new Error('Не удалось получить доступ к микрофону');
+      }
+
+      localStream.current = stream;
+      if (localVideoRef.current && type === 'video') {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      return stream;
+    } catch (err) {
+      console.error('[Call] getUserMedia error:', err);
+      if (err.name === 'NotAllowedError') {
+        throw new Error('Доступ к микрофону запрещен. Разрешите доступ в настройках браузера');
+      } else if (err.name === 'NotFoundError') {
+        throw new Error('Микрофон не найден');
+      } else {
+        throw new Error('Ошибка доступа к микрофону: ' + err.message);
+      }
     }
-    return stream;
   }, []);
 
   // ── Flush ICE candidates ───────────────────────────────────────────────────
@@ -286,11 +313,23 @@ export default function CallManager({ currentUser }) {
       // Add tracks and verify they're added
       const senders = [];
       stream.getTracks().forEach(t => {
-        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled);
+        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled, 'readyState:', t.readyState);
         const sender = conn.addTrack(t, stream);
         senders.push(sender);
+        
+        // Log sender parameters
+        console.log('[Call] Sender params:', sender.track?.kind, sender.track?.enabled);
       });
       console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
+      
+      // Verify senders
+      const allSenders = conn.getSenders();
+      console.log('[Call] Total senders:', allSenders.length);
+      allSenders.forEach((s, i) => {
+        if (s.track) {
+          console.log(`[Call] Sender ${i}:`, s.track.kind, s.track.enabled, s.track.readyState);
+        }
+      });
 
       const offer = await conn.createOffer({
         offerToReceiveAudio: true,
@@ -298,7 +337,7 @@ export default function CallManager({ currentUser }) {
       });
       await conn.setLocalDescription(offer);
 
-      console.log('[Call] Sending offer');
+      console.log('[Call] Sending offer, SDP:', offer.sdp.substring(0, 200) + '...');
       wsSend('call_offer', targetUser.id, {
         offer,
         type,
@@ -340,11 +379,23 @@ export default function CallManager({ currentUser }) {
       // Add tracks and verify they're added
       const senders = [];
       stream.getTracks().forEach(t => {
-        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled);
+        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled, 'readyState:', t.readyState);
         const sender = conn.addTrack(t, stream);
         senders.push(sender);
+        
+        // Log sender parameters
+        console.log('[Call] Sender params:', sender.track?.kind, sender.track?.enabled);
       });
       console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
+      
+      // Verify senders
+      const allSenders = conn.getSenders();
+      console.log('[Call] Total senders:', allSenders.length);
+      allSenders.forEach((s, i) => {
+        if (s.track) {
+          console.log(`[Call] Sender ${i}:`, s.track.kind, s.track.enabled, s.track.readyState);
+        }
+      });
 
       console.log('[Call] Setting remote description');
       await conn.setRemoteDescription(new RTCSessionDescription(incoming.offer));
@@ -353,7 +404,7 @@ export default function CallManager({ currentUser }) {
       const answer = await conn.createAnswer();
       await conn.setLocalDescription(answer);
 
-      console.log('[Call] Sending answer');
+      console.log('[Call] Sending answer, SDP:', answer.sdp.substring(0, 200) + '...');
       wsSend('call_answer', incoming.from, { answer });
       durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
     } catch (err) {
