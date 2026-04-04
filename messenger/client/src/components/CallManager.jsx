@@ -7,9 +7,14 @@ import {
 
 // ── ICE servers ───────────────────────────────────────────────────────────────
 const ICE_SERVERS = [
+  // Google STUN servers
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  // Free TURN servers
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  
+  // Free TURN servers - Metered
   {
     urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
@@ -20,6 +25,14 @@ const ICE_SERVERS = [
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  
+  // Twilio STUN
+  { urls: 'stun:global.stun.twilio.com:3478' },
 ];
 
 // ── Ringtone ──────────────────────────────────────────────────────────────────
@@ -135,12 +148,15 @@ export default function CallManager({ currentUser }) {
       iceCandidatePoolSize: 10,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
+      iceTransportPolicy: 'all', // Use both STUN and TURN
     });
 
     conn.onicecandidate = (e) => {
       if (e.candidate) {
-        console.log('[Call] Sending ICE candidate');
+        console.log('[Call] ICE candidate:', e.candidate.type, e.candidate.address || e.candidate.candidate);
         wsSend('call_ice', targetId, { candidate: e.candidate });
+      } else {
+        console.log('[Call] ICE gathering complete');
       }
     };
 
