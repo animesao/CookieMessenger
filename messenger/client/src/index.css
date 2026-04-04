@@ -4727,3 +4727,49 @@ body {
 [data-theme="light"] .captcha-input-wrap input { background: var(--input-bg); border-color: var(--border2); color: var(--text); }
 [data-theme="light"] .captcha-refresh { background: var(--bg4); border-color: var(--border2); color: var(--text3); }
 [data-theme="light"] .discord-verified-badge { background: rgba(88,101,242,0.08); }
+
+/* ── Register steps ──────────────────────────────────────────────────────── */
+.register-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+.register-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #444;
+  white-space: nowrap;
+}
+.register-step.active { color: #fff; font-weight: 600; }
+.register-step.done { color: #69db7c; }
+.register-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.register-step.active .register-step-num { background: #fff; color: #000; border-color: #fff; }
+.register-step.done .register-step-num { background: rgba(105,219,124,0.15); color: #69db7c; border-color: #69db7c; }
+.register-step-line {
+  flex: 1;
+  height: 1px;
+  background: #2a2a2a;
+  margin: 0 0.5rem;
+}
+.register-step-line.active { background: #69db7c; }
+
+[data-theme="light"] .register-step { color: var(--text4); }
+[data-theme="light"] .register-step.active { color: var(--text); }
+[data-theme="light"] .register-step-num { background: var(--bg4); border-color: var(--border2); }
+[data-theme="light"] .register-step.active .register-step-num { background: #111; color: #fff; border-color: #111; }
+[data-theme="light"] .register-step-line { background: var(--border2); }
