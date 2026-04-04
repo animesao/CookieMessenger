@@ -106,8 +106,18 @@ app.get('/api/gifs', apiLimiter, async (req, res) => {
 // Serve built frontend if dist exists (production / pterodactyl)
 const distPath = require('path').join(__dirname, '../client/dist');
 if (require('fs').existsSync(distPath)) {
-  app.use(require('express').static(distPath));
+  app.use(require('express').static(distPath, {
+    maxAge: '1y',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    },
+  }));
   app.get('*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(require('path').join(distPath, 'index.html'));
   });
 } else {

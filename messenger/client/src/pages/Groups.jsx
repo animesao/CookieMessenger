@@ -381,15 +381,18 @@ export default function Groups({ user }) {
     const onInvite = () => load();
     const onKicked = (e) => { setMyGroups(prev => prev.filter(g => g.id !== e.detail.groupId)); if (activeGroup?.id === e.detail.groupId) setActiveGroup(null); };
     const onDeleted = (e) => { setMyGroups(prev => prev.filter(g => g.id !== e.detail.groupId)); if (activeGroup?.id === e.detail.groupId) setActiveGroup(null); };
+    const onNewPublic = (e) => { setPublicGroups(prev => prev.find(g => g.id === e.detail.id) ? prev : [e.detail, ...prev]); };
     window.addEventListener('ws_group_message', onMsg);
     window.addEventListener('ws_group_invite', onInvite);
     window.addEventListener('ws_group_kicked', onKicked);
     window.addEventListener('ws_group_deleted', onDeleted);
+    window.addEventListener('ws_new_public_group', onNewPublic);
     return () => {
       window.removeEventListener('ws_group_message', onMsg);
       window.removeEventListener('ws_group_invite', onInvite);
       window.removeEventListener('ws_group_kicked', onKicked);
       window.removeEventListener('ws_group_deleted', onDeleted);
+      window.removeEventListener('ws_new_public_group', onNewPublic);
     };
   }, [activeGroup, load]);
 

@@ -62,6 +62,11 @@ router.post('/', auth, validateLengths({ name: 50, description: 200 }), (req, re
 
   const group = db.prepare('SELECT * FROM groups WHERE id=?').get(groupId);
   res.json({ ...group, member_count: 1, role: 'owner' });
+
+  // Broadcast new public group to all users
+  if (type === 'public') {
+    ws.broadcast('new_public_group', { ...group, member_count: 1 });
+  }
 });
 
 // ── GET /api/groups/:id ───────────────────────────────────────────────────────
