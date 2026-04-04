@@ -79,13 +79,30 @@ export function wsDisconnect() {
 // Send a message through the WS
 export function wsSend(event, to, data) {
   const msg = JSON.stringify({ event, to, data });
-  if (globalWs?.readyState === WebSocket.OPEN) {
+  const state = globalWs?.readyState;
+  
+  if (state === WebSocket.OPEN) {
     console.log('[WS] Sending', event, 'to', to);
     globalWs.send(msg);
   } else {
-    console.warn('[WS] Not connected, queueing', event);
-    pendingQueue.push(msg);
-    connect();
+    console.warn('[WS] Not connected (state:', state, '), queueing', event);
+    
+    // For critical call signaling, try to reconnect immediately
+    if (['call_offer', 'call_answer', 'call_ice'].includes(event)) {
+      console.log('[WS] Critical signaling message, attempting immediate reconnect');
+      pendingQueue.push(msg);
+      
+      // If connecting, wait a bit
+      if (state === WebSocket.CONNECTING) {
+        console.log('[WS] Already connecting, waiting...');
+      } else {
+        // Force reconnect
+        connect();
+      }
+    } else {
+      pendingQueue.push(msg);
+      connect();
+    }
   }
 }
 
