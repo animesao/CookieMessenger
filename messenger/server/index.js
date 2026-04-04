@@ -22,6 +22,7 @@ const messagesRoutes = require('./routes/messages');
 const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const rolesRoutes = require('./routes/roles');
+const groupsRoutes = require('./routes/groups');
 const ws = require('./ws');
 const { securityHeaders, apiLimiter, sanitizeBody } = require('./middleware/security');
 
@@ -55,6 +56,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/groups', groupsRoutes);
 
 // ── GIF proxy via Tenor ───────────────────────────────────────────────────────
 function httpsGet(url) {

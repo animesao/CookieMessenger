@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   User, Camera, ImagePlus, FileText, Palette, Check,
   Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss,
-  Users, MessageSquare, FileImage, Loader, ShieldAlert,
+  Users, MessageSquare, FileImage, Loader, ShieldAlert, UsersRound,
 } from 'lucide-react';
 import ImageCropper from '../components/ImageCropper';
 import ChangelogModal from '../components/ChangelogModal';
@@ -13,6 +13,7 @@ import Settings from './Settings';
 import Feed from './Feed';
 import Friends from './Friends';
 import Messages from './Messages';
+import Groups from './Groups';
 
 const ACCENT_COLORS = [
   '#ffffff', '#a8a8a8', '#ff6b6b', '#ffa94d',
@@ -226,6 +227,10 @@ export default function Profile({ user, onUpdate, onLogout }) {
           <button className={`sidebar-item ${tab === 'messages' ? 'active' : ''}`}
             onClick={() => setTab('messages')} style={tab === 'messages' ? { color: accent } : {}}>
             <MessageSquare size={17} /> Сообщения
+          </button>
+          <button className={`sidebar-item ${tab === 'groups' ? 'active' : ''}`}
+            onClick={() => setTab('groups')} style={tab === 'groups' ? { color: accent } : {}}>
+            <UsersRound size={17} /> Группы
           </button>
           <button className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => setTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
@@ -498,6 +503,12 @@ export default function Profile({ user, onUpdate, onLogout }) {
         {tab === 'settings' && (
           <div className="profile-content">
             <Settings user={user} onUpdate={onUpdate} onLogout={onLogout} />
+          </div>
+        )}
+
+        {tab === 'groups' && (
+          <div className="profile-content profile-content--full">
+            <Groups user={user} />
           </div>
         )}
 
