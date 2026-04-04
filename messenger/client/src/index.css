@@ -2033,13 +2033,16 @@ body {
 .msg-row-theirs { justify-content: flex-start; }
 
 .msg-bubble {
-  max-width: 65%;
+  max-width: 75%;
   padding: 0.55rem 0.85rem;
   border-radius: 14px;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
   word-break: break-word;
+  hyphens: auto;
 }
 .msg-bubble-mine {
   background: #fff;
@@ -2051,7 +2054,13 @@ body {
   color: #e0e0e0;
   border-bottom-left-radius: 4px;
 }
-.msg-bubble-text { font-size: 0.9rem; line-height: 1.45; }
+.msg-bubble-text {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
 .msg-bubble-time { font-size: 0.65rem; opacity: 0.5; align-self: flex-end; }
 
 .msg-input-row {
@@ -4066,6 +4075,11 @@ body {
   .msg-chat.hidden { display: none; }
 
   .msg-back-btn { display: flex !important; }
+
+  /* Wider message bubbles on mobile */
+  .msg-bubble {
+    max-width: 85%;
+  }
 }
 
 /* ── Friends on mobile ──────────────────────────────────────────────────── */
