@@ -33,43 +33,35 @@ function preferCodec(sdp, type, codec) {
   return lines.join('\r\n');
 }
 
-// ── ICE servers — Multiple STUN + TURN for reliability (Telegram-style) ──────
+// ── ICE servers — Reliable public servers (Twilio + Metered) ─────────────────
 const ICE_SERVERS = [
   // Google STUN servers
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
   
-  // Twilio STUN (reliable)
+  // Twilio STUN (very reliable)
   { urls: 'stun:global.stun.twilio.com:3478' },
   
-  // Free public TURN servers (most reliable)
+  // Metered TURN servers (free, most reliable for calls)
   {
-    urls: 'turn:openrelay.metered.ca:80',
+    urls: 'turn:a.relay.metered.ca:80',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
   {
-    urls: 'turn:openrelay.metered.ca:443',
+    urls: 'turn:a.relay.metered.ca:80?transport=tcp',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
   {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    urls: 'turn:a.relay.metered.ca:443',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
-  
-  // Your own TURN server (if working)
   {
-    urls: 'turn:213.152.43.207:3478',
-    username: 'cookiemessenger',
-    credential: 'ade029c0999b51caff7ac2b55b45e1ef',
-  },
-  {
-    urls: 'turn:213.152.43.207:3478?transport=tcp',
-    username: 'cookiemessenger',
-    credential: 'ade029c0999b51caff7ac2b55b45e1ef',
+    urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
   },
 ];
 
