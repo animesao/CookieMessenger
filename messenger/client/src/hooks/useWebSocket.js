@@ -7,17 +7,48 @@ let reconnectTimer = null;
 let isConnecting = false;
 const pendingQueue = [];
 
-function connect() {
+// Get one-time WebSocket ticket from server
+async function getWsTicket() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+
+    const res = await fetch('/api/auth/ws-ticket', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.ticket;
+  } catch (err) {
+    console.error('[WS] Failed to get ticket:', err);
+    return null;
+  }
+}
+
+async function connect() {
   const token = localStorage.getItem('token');
   if (!token) return;
   if (isConnecting) return;
   if (globalWs && (globalWs.readyState === WebSocket.OPEN || globalWs.readyState === WebSocket.CONNECTING)) return;
 
   isConnecting = true;
+
+  // Get one-time ticket instead of using token directly
+  const ticket = await getWsTicket();
+  if (!ticket) {
+    console.error('[WS] No ticket, cannot connect');
+    isConnecting = false;
+    return;
+  }
+
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  // Use same host+port as the page — works for both dev (vite proxy) and prod (pterodactyl/nginx)
   const host = window.location.host;
-  const socket = new WebSocket(`${protocol}://${host}/ws?token=${token}`);
+  const socket = new WebSocket(`${protocol}://${host}/ws?ticket=${ticket}`);
   globalWs = socket;
 
   socket.onopen = () => {

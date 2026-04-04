@@ -1,8 +1,6 @@
 const { WebSocketServer, WebSocket } = require('ws');
-const jwt = require('jsonwebtoken');
 const { wsRateLimit } = require('./middleware/security');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const clients = new Map(); // userId -> Set<ws>
 
 // Per-user WS message rate limit: max 30 messages per 10 seconds
@@ -35,14 +33,14 @@ function setup(server) {
     }
 
     const url = new URL(req.url, 'http://localhost');
-    const token = url.searchParams.get('token');
+    const ticket = url.searchParams.get('ticket');
 
-    let userId = null;
-    try {
-      const payload = jwt.verify(token, JWT_SECRET);
-      userId = payload.id;
-    } catch {
-      ws.close(4001, 'Unauthorized');
+    // Verify one-time ticket instead of JWT
+    const { verifyWsTicket } = require('./routes/auth');
+    const userId = verifyWsTicket(ticket);
+    
+    if (!userId) {
+      ws.close(4001, 'Invalid or expired ticket');
       return;
     }
 

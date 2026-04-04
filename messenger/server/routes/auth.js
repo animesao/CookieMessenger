@@ -287,4 +287,33 @@ router.post('/logout', (req, res) => {
   res.json({ message: 'Logged out' });
 });
 
-module.exports = router;
+// ── WebSocket ticket store (one-time use) ─────────────────────────────────────
+const wsTicketStore = new Map(); // ticket -> { userId, expiresAt }
+
+function createWsTicket(userId) {
+  const ticket = require('crypto').randomBytes(32).toString('hex');
+  wsTicketStore.set(ticket, { userId, expiresAt: Date.now() + 30_000 }); // 30 sec TTL
+  // Cleanup expired
+  for (const [k, v] of wsTicketStore) {
+    if (Date.now() > v.expiresAt) wsTicketStore.delete(k);
+  }
+  return ticket;
+}
+
+function verifyWsTicket(ticket) {
+  const entry = wsTicketStore.get(ticket);
+  if (!entry || Date.now() > entry.expiresAt) {
+    wsTicketStore.delete(ticket);
+    return null;
+  }
+  wsTicketStore.delete(ticket); // one-time use
+  return entry.userId;
+}
+
+// ── POST /api/auth/ws-ticket — get one-time WebSocket ticket ─────────────────
+router.post('/ws-ticket', require('../middleware/auth'), (req, res) => {
+  const ticket = createWsTicket(req.user.id);
+  res.json({ ticket });
+});
+
+module.exports = { router, verifyWsTicket };
