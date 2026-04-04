@@ -4568,3 +4568,21 @@ body {
   .groups-sidebar { width: 100%; height: 100%; border-right: none; }
   .grp-chat { height: calc(100vh - 4.5rem); }
 }
+
+/* ── Sidebar badges ──────────────────────────────────────────────────────── */
+.sidebar-badge {
+  margin-left: auto;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+[data-theme="light"] .sidebar-badge { background: #ff6b6b; }

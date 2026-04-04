@@ -40,6 +40,45 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const [profileTab, setProfileTab] = useState('info'); // 'info' | 'posts'
   const [chatTarget, setChatTarget] = useState(null);
 
+  // Unread counters for sidebar badges
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadGroups, setUnreadGroups] = useState(0);
+  const [pendingFriends, setPendingFriends] = useState(0);
+
+  // Load unread counts on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch('/api/messages/unread-count', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setUnreadMessages(d.count || 0)).catch(() => {});
+    fetch('/api/friends/requests', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setPendingFriends(Array.isArray(d) ? d.length : 0)).catch(() => {});
+  }, []);
+
+  // Real-time unread updates
+  useEffect(() => {
+    const onMsg = (e) => {
+      const msg = e.detail;
+      if (msg.sender_id !== user.id && tab !== 'messages') {
+        setUnreadMessages(n => n + 1);
+      }
+    };
+    const onGroupMsg = (e) => {
+      if (tab !== 'groups') setUnreadGroups(n => n + 1);
+    };
+    const onFriendReq = () => setPendingFriends(n => n + 1);
+    const onFriendAcc = () => setPendingFriends(n => Math.max(0, n - 1));
+    window.addEventListener('ws_new_message', onMsg);
+    window.addEventListener('ws_group_message', onGroupMsg);
+    window.addEventListener('ws_friend_request', onFriendReq);
+    window.addEventListener('ws_friend_accepted', onFriendAcc);
+    return () => {
+      window.removeEventListener('ws_new_message', onMsg);
+      window.removeEventListener('ws_group_message', onGroupMsg);
+      window.removeEventListener('ws_friend_request', onFriendReq);
+      window.removeEventListener('ws_friend_accepted', onFriendAcc);
+    };
+  }, [user.id, tab]);
+
   // Stats
   const [stats, setStats] = useState({ followers: 0, following: 0, postsCount: 0 });
 
@@ -75,6 +114,13 @@ export default function Profile({ user, onUpdate, onLogout }) {
   }, [user.username, postsLoaded]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
+
+  // Real-time stats update
+  useEffect(() => {
+    const onFollow = () => loadStats();
+    window.addEventListener('ws_notification', onFollow);
+    return () => window.removeEventListener('ws_notification', onFollow);
+  }, [loadStats]);
 
   useEffect(() => {
     if (profileTab === 'posts') loadMyPosts();
@@ -221,16 +267,19 @@ export default function Profile({ user, onUpdate, onLogout }) {
             <Rss size={17} /> Лента
           </button>
           <button className={`sidebar-item ${tab === 'friends' ? 'active' : ''}`}
-            onClick={() => setTab('friends')} style={tab === 'friends' ? { color: accent } : {}}>
+            onClick={() => { setTab('friends'); setPendingFriends(0); }} style={tab === 'friends' ? { color: accent } : {}}>
             <Users size={17} /> Друзья
+            {pendingFriends > 0 && <span className="sidebar-badge">{pendingFriends}</span>}
           </button>
           <button className={`sidebar-item ${tab === 'messages' ? 'active' : ''}`}
-            onClick={() => setTab('messages')} style={tab === 'messages' ? { color: accent } : {}}>
+            onClick={() => { setTab('messages'); setUnreadMessages(0); }} style={tab === 'messages' ? { color: accent } : {}}>
             <MessageSquare size={17} /> Сообщения
+            {unreadMessages > 0 && <span className="sidebar-badge">{unreadMessages}</span>}
           </button>
           <button className={`sidebar-item ${tab === 'groups' ? 'active' : ''}`}
-            onClick={() => setTab('groups')} style={tab === 'groups' ? { color: accent } : {}}>
+            onClick={() => { setTab('groups'); setUnreadGroups(0); }} style={tab === 'groups' ? { color: accent } : {}}>
             <UsersRound size={17} /> Группы
+            {unreadGroups > 0 && <span className="sidebar-badge">{unreadGroups}</span>}
           </button>
           <button className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => setTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
