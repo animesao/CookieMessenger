@@ -4893,3 +4893,16 @@ body {
   display: block;
   margin-top: 2px;
 }
+
+.call-quality-indicator {
+  font-size: 11px;
+  display: block;
+  margin-top: 2px;
+  color: #ff9800;
+  animation: pulse-quality 2s ease-in-out infinite;
+}
+
+@keyframes pulse-quality {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}

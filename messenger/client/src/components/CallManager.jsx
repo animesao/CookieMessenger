@@ -5,13 +5,44 @@ import {
   Mic, MicOff, Monitor, MonitorOff,
 } from 'lucide-react';
 
-// ── ICE servers — STUN + free TURN (metered.ca) ───────────────────────────────
+// ── Codec preference helper (Telegram uses Opus + VP9/VP8) ───────────────────
+function preferCodec(sdp, type, codec) {
+  const lines = sdp.split('\r\n');
+  const mLineIndex = lines.findIndex(l => l.startsWith(`m=${type}`));
+  if (mLineIndex === -1) return sdp;
+
+  const codecLines = lines.filter(l => l.includes(`rtpmap`) && l.toLowerCase().includes(codec.toLowerCase()));
+  if (codecLines.length === 0) return sdp;
+
+  const codecIds = codecLines.map(l => {
+    const match = l.match(/a=rtpmap:(\d+)/);
+    return match ? match[1] : null;
+  }).filter(Boolean);
+
+  if (codecIds.length === 0) return sdp;
+
+  const mLine = lines[mLineIndex];
+  const parts = mLine.split(' ');
+  const existingCodecs = parts.slice(3);
+  
+  // Move preferred codec to front
+  const reordered = [...codecIds, ...existingCodecs.filter(c => !codecIds.includes(c))];
+  parts.splice(3, existingCodecs.length, ...reordered);
+  lines[mLineIndex] = parts.join(' ');
+
+  return lines.join('\r\n');
+}
+
+// ── ICE servers — Multiple STUN + TURN for reliability (Telegram-style) ──────
 const ICE_SERVERS = [
+  // Google STUN servers
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  // Free TURN servers for NAT traversal
+  { urls: 'stun:stun4.l.google.com:19302' },
+  
+  // Free TURN servers for NAT traversal (multiple for redundancy)
   {
     urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
@@ -24,6 +55,17 @@ const ICE_SERVERS = [
   },
   {
     urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  // Backup TURN server
+  {
+    urls: 'turn:relay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:relay.metered.ca:443',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
@@ -74,6 +116,8 @@ export default function CallManager({ currentUser }) {
   const [callDuration, setCallDuration] = useState(0);
   const [callError, setCallError] = useState(null);
   const [connectionState, setConnectionState] = useState('');
+  const [connectionQuality, setConnectionQuality] = useState('good'); // good, medium, poor
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
   const callStateRef = useRef('idle');
   const remoteUserRef = useRef(null);
@@ -117,11 +161,13 @@ export default function CallManager({ currentUser }) {
     setCallStateSync('idle');
     setCallDuration(0);
     setConnectionState('');
+    setConnectionQuality('good');
+    setReconnectAttempts(0);
     setMicOn(true); setCamOn(true); setScreenOn(false);
     setRemoteUser(null);
   }, [ringtone]);
 
-  // ── Create PeerConnection ──────────────────────────────────────────────────
+  // ── Create PeerConnection with Telegram-style config ──────────────────────
   const createPC = useCallback((targetId) => {
     if (pc.current) { try { pc.current.close(); } catch {} }
     iceCandidateBuffer.current = [];
@@ -131,23 +177,62 @@ export default function CallManager({ currentUser }) {
       iceCandidatePoolSize: 10,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
+      iceTransportPolicy: 'all', // Try all: UDP, TCP, TURN
     });
 
+    // ICE candidate gathering
     conn.onicecandidate = (e) => {
-      if (e.candidate) wsSend('call_ice', targetId, { candidate: e.candidate });
+      if (e.candidate) {
+        console.log('[Call] ICE candidate:', e.candidate.type, e.candidate.protocol);
+        wsSend('call_ice', targetId, { candidate: e.candidate });
+      }
     };
 
+    // ICE gathering state
+    conn.onicegatheringstatechange = () => {
+      console.log('[Call] ICE gathering state:', conn.iceGatheringState);
+    };
+
+    // Connection state monitoring (Telegram-style)
     conn.oniceconnectionstatechange = () => {
-      setConnectionState(conn.iceConnectionState);
-      if (conn.iceConnectionState === 'failed') {
-        // Try ICE restart
-        if (conn.restartIce) conn.restartIce();
+      const state = conn.iceConnectionState;
+      console.log('[Call] ICE connection state:', state);
+      setConnectionState(state);
+      
+      if (state === 'connected' || state === 'completed') {
+        setReconnectAttempts(0);
+        monitorConnectionQuality(conn);
+      } else if (state === 'disconnected') {
+        // Try to reconnect (Telegram does this)
+        setReconnectAttempts(prev => {
+          const attempts = prev + 1;
+          if (attempts <= 3) {
+            console.log('[Call] Attempting reconnect', attempts);
+            setTimeout(() => {
+              if (conn.restartIce) conn.restartIce();
+            }, 1000);
+          }
+          return attempts;
+        });
+      } else if (state === 'failed') {
+        // Final attempt with ICE restart
+        if (conn.restartIce && reconnectAttempts < 3) {
+          console.log('[Call] ICE failed, restarting...');
+          conn.restartIce();
+        } else {
+          setCallError('Соединение потеряно');
+          const ru = remoteUserRef.current;
+          const id = incomingDataRef.current;
+          if (ru) wsSend('call_end', ru.id, {});
+          else if (id) wsSend('call_end', id.from, {});
+          cleanup();
+        }
       }
     };
 
     conn.onconnectionstatechange = () => {
-      setConnectionState(conn.connectionState);
-      if (['disconnected', 'failed', 'closed'].includes(conn.connectionState)) {
+      console.log('[Call] Connection state:', conn.connectionState);
+      if (['closed'].includes(conn.connectionState)) {
         const ru = remoteUserRef.current;
         const id = incomingDataRef.current;
         if (ru) wsSend('call_end', ru.id, {});
@@ -157,6 +242,7 @@ export default function CallManager({ currentUser }) {
     };
 
     conn.ontrack = (e) => {
+      console.log('[Call] Track received:', e.track.kind);
       if (e.track.kind === 'audio') {
         if (!window.remoteAudio) {
           const audioEl = new Audio();
@@ -175,23 +261,25 @@ export default function CallManager({ currentUser }) {
 
     pc.current = conn;
     return conn;
-  }, [cleanup]);
+  }, [cleanup, reconnectAttempts]);
 
-  // ── Get local media with noise suppression ────────────────────────────────
+  // ── Get local media with Telegram-style quality settings ─────────────────
   const getMedia = useCallback(async (type) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Для звонков требуется HTTPS. Откройте сайт по защищённому соединению.');
     }
 
+    // Telegram-style audio constraints (Opus codec, noise suppression)
     const audioConstraints = {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      sampleRate: 48000,
+      sampleRate: 48000, // Opus optimal
       channelCount: 1,
       latency: 0,
     };
 
+    // Adaptive video quality (starts high, adjusts based on connection)
     const videoConstraints = type === 'video' ? {
       width: { ideal: 1280, max: 1920 },
       height: { ideal: 720, max: 1080 },
@@ -209,6 +297,79 @@ export default function CallManager({ currentUser }) {
       localVideoRef.current.srcObject = stream;
     }
     return stream;
+  }, []);
+
+  // ── Monitor connection quality (Telegram-style adaptive bitrate) ──────────
+  const monitorConnectionQuality = useCallback(async (conn) => {
+    if (!conn) return;
+    
+    const checkQuality = async () => {
+      try {
+        const stats = await conn.getStats();
+        let packetsLost = 0;
+        let packetsReceived = 0;
+        let bytesReceived = 0;
+        let bytesSent = 0;
+        let currentRoundTripTime = 0;
+
+        stats.forEach(report => {
+          if (report.type === 'inbound-rtp') {
+            packetsLost += report.packetsLost || 0;
+            packetsReceived += report.packetsReceived || 0;
+            bytesReceived += report.bytesReceived || 0;
+          }
+          if (report.type === 'outbound-rtp') {
+            bytesSent += report.bytesSent || 0;
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            currentRoundTripTime = report.currentRoundTripTime || 0;
+          }
+        });
+
+        // Calculate packet loss percentage
+        const totalPackets = packetsReceived + packetsLost;
+        const lossPercent = totalPackets > 0 ? (packetsLost / totalPackets) * 100 : 0;
+        const rtt = currentRoundTripTime * 1000; // Convert to ms
+
+        // Determine quality (Telegram-style thresholds)
+        let quality = 'good';
+        if (lossPercent > 5 || rtt > 300) quality = 'poor';
+        else if (lossPercent > 2 || rtt > 150) quality = 'medium';
+
+        setConnectionQuality(quality);
+
+        // Adaptive bitrate adjustment
+        if (quality === 'poor' && conn.getSenders) {
+          conn.getSenders().forEach(sender => {
+            if (sender.track?.kind === 'video') {
+              const params = sender.getParameters();
+              if (!params.encodings) params.encodings = [{}];
+              // Reduce bitrate for poor connection
+              params.encodings[0].maxBitrate = 500000; // 500 kbps
+              sender.setParameters(params).catch(() => {});
+            }
+          });
+        } else if (quality === 'good' && conn.getSenders) {
+          conn.getSenders().forEach(sender => {
+            if (sender.track?.kind === 'video') {
+              const params = sender.getParameters();
+              if (!params.encodings) params.encodings = [{}];
+              // Restore bitrate for good connection
+              params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps
+              sender.setParameters(params).catch(() => {});
+            }
+          });
+        }
+
+        console.log('[Call] Quality:', quality, 'Loss:', lossPercent.toFixed(1) + '%', 'RTT:', rtt.toFixed(0) + 'ms');
+      } catch (err) {
+        console.error('[Call] Stats error:', err);
+      }
+    };
+
+    // Check quality every 2 seconds
+    const interval = setInterval(checkQuality, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── Flush buffered ICE candidates ─────────────────────────────────────────
@@ -240,11 +401,20 @@ export default function CallManager({ currentUser }) {
       const conn = createPC(targetUser.id);
       stream.getTracks().forEach(t => conn.addTrack(t, stream));
 
+      // Telegram-style offer with preferred codecs
       const offer = await conn.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: type === 'video',
         voiceActivityDetection: true,
       });
+
+      // Prefer Opus for audio and VP9/VP8 for video (Telegram uses these)
+      offer.sdp = preferCodec(offer.sdp, 'audio', 'opus');
+      if (type === 'video') {
+        offer.sdp = preferCodec(offer.sdp, 'video', 'VP9');
+        offer.sdp = preferCodec(offer.sdp, 'video', 'VP8');
+      }
+
       await conn.setLocalDescription(offer);
 
       // Send offer — check WS is open
@@ -518,12 +688,18 @@ export default function CallManager({ currentUser }) {
             <div className="call-hud-info">
               <span className="call-hud-name" style={{ color: accent }}>{remoteName}</span>
               <span className="call-hud-timer">{fmt(callDuration)}</span>
-              {connectionState && connectionState !== 'connected' && (
+              {connectionState && connectionState !== 'connected' && connectionState !== 'completed' && (
                 <span className="call-conn-state">{
                   connectionState === 'connecting' ? '🔄 Подключение...' :
                   connectionState === 'checking' ? '🔄 Проверка...' :
-                  connectionState === 'disconnected' ? '⚠️ Нестабильно' :
+                  connectionState === 'disconnected' ? '⚠️ Переподключение...' :
                   connectionState === 'failed' ? '❌ Ошибка связи' : ''
+                }</span>
+              )}
+              {(connectionState === 'connected' || connectionState === 'completed') && connectionQuality !== 'good' && (
+                <span className="call-quality-indicator">{
+                  connectionQuality === 'medium' ? '📶 Среднее качество' :
+                  connectionQuality === 'poor' ? '📶 Слабое соединение' : ''
                 }</span>
               )}
             </div>
