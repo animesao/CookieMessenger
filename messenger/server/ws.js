@@ -95,6 +95,11 @@ function setup(server) {
         if (ALLOWED_SIGNALING.has(msg.event) && msg.to && Number.isInteger(msg.to)) {
           console.log(`[WS] ${msg.event} from ${userId} to ${msg.to}, target online: ${clients.has(msg.to)}`);
           
+          // Log answer specifically
+          if (msg.event === 'call_answer') {
+            console.log(`[WS] call_answer: has SDP: ${!!msg.data?.answer?.sdp}`);
+          }
+          
           // Privacy check only for INITIATING a call (call_offer)
           if (msg.event === 'call_offer') {
             const db = require('./db');

@@ -374,7 +374,8 @@ export default function CallManager({ currentUser }) {
       // Timeout
       callTimeout.current = setTimeout(() => {
         if (callStateRef.current === 'calling') {
-          console.log('[Call] No answer timeout');
+          console.log('[Call] No answer timeout - state is still calling');
+          console.log('[Call] This means the other person did not answer or answer was not delivered');
           setCallError('Нет ответа');
           cleanup();
         }
@@ -528,15 +529,25 @@ export default function CallManager({ currentUser }) {
     }, [ringtone, cleanup, setCallStateSync]),
 
     call_answer: useCallback(async (data) => {
-      console.log('[Call] Received answer');
-      if (!pc.current) return;
+      console.log('[Call] Received answer from', data.from || 'unknown');
+      console.log('[Call] Answer SDP:', data.answer?.sdp?.substring(0, 200) + '...');
+      
+      if (!pc.current) {
+        console.error('[Call] No PeerConnection when receiving answer');
+        return;
+      }
+      
       if (callTimeout.current) clearTimeout(callTimeout.current);
       
       try {
+        console.log('[Call] Setting remote description (answer)');
         await pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        console.log('[Call] Remote description set successfully');
+        
         await flushIceCandidates();
         setCallStateSync('active');
         durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+        console.log('[Call] Call is now active');
       } catch (err) {
         console.error('[Call] Answer processing error:', err);
         setCallError('Ошибка соединения');
