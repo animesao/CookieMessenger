@@ -114,24 +114,32 @@ function setup(server) {
           if (msg.event === 'call_offer') {
             console.log(`[WS] call_offer: has SDP: ${!!msg.data?.offer?.sdp}, SDP length: ${msg.data?.offer?.sdp?.length || 0}`);
             
-            const db = require('./db');
-            const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
-            const setting = target?.privacy_who_can_call || 'everyone';
-            console.log(`[WS] call_offer: target privacy=${setting}`);
-            if (setting === 'nobody') {
-              console.log('[WS] blocked by privacy=nobody');
-              return;
-            }
-            if (setting === 'friends') {
-              const areFriends = !!db.prepare(`
-                SELECT 1 FROM friendships
-                WHERE ((requester_id=? AND addressee_id=?) OR (requester_id=? AND addressee_id=?))
-                AND status='accepted'
-              `).get(userId, msg.to, msg.to, userId);
-              if (!areFriends) {
-                console.log('[WS] blocked by privacy=friends, not friends');
+            try {
+              const db = require('./db');
+              const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
+              const setting = target?.privacy_who_can_call || 'everyone';
+              console.log(`[WS] call_offer: target privacy=${setting}`);
+              if (setting === 'nobody') {
+                console.log('[WS] blocked by privacy=nobody');
+                // Send rejection back to caller
+                sendTo(userId, 'call_reject', { from: msg.to, reason: 'privacy' });
                 return;
               }
+              if (setting === 'friends') {
+                const areFriends = !!db.prepare(`
+                  SELECT 1 FROM friendships
+                  WHERE ((requester_id=? AND addressee_id=?) OR (requester_id=? AND addressee_id=?))
+                  AND status='accepted'
+                `).get(userId, msg.to, msg.to, userId);
+                if (!areFriends) {
+                  console.log('[WS] blocked by privacy=friends, not friends');
+                  // Send rejection back to caller
+                  sendTo(userId, 'call_reject', { from: msg.to, reason: 'not_friends' });
+                  return;
+                }
+              }
+            } catch (err) {
+              console.error('[WS] Error checking call privacy:', err);
             }
           }
           
@@ -176,8 +184,11 @@ function sendTo(userIds, event, data) {
           sent++;
         }
       });
+    } else {
+      console.log(`[WS] User ${uid} has no active connections`);
     }
   });
+  console.log(`[WS] sendTo(${ids.join(',')}, ${event}): sent to ${sent} socket(s)`);
   return sent > 0;
 }
 

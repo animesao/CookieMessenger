@@ -38,12 +38,29 @@ async function connect() {
 
   socket.onmessage = (e) => {
     try {
-      const { event, data } = JSON.parse(e.data);
+      const parsed = JSON.parse(e.data);
+      
+      // Handle auth_ok response
+      if (parsed.type === 'auth_ok') {
+        console.log('[WS] Authentication successful');
+        return;
+      }
+      
+      const { event, data } = parsed;
+      if (!event) {
+        console.warn('[WS] Received message without event:', parsed);
+        return;
+      }
+      
+      console.log('[WS] Received event:', event, data);
+      
       // 1. Dispatch to all registered hook handlers
       Object.values(globalHandlers).forEach(h => h[event]?.(data));
       // 2. Also fire DOM events for components that listen via addEventListener
       window.dispatchEvent(new CustomEvent(`ws_${event}`, { detail: data }));
-    } catch {}
+    } catch (err) {
+      console.error('[WS] Error parsing message:', err);
+    }
   };
 
   socket.onclose = (e) => {

@@ -46,8 +46,8 @@ migrate('role', "TEXT DEFAULT 'user'");
 migrate('discord_id', 'TEXT');
 migrate('discord_verified', 'INTEGER DEFAULT 0');
 // Privacy extended
-migrate('privacy_who_can_message', "TEXT DEFAULT 'friends'");
-migrate('privacy_who_can_call',    "TEXT DEFAULT 'friends'");
+migrate('privacy_who_can_message', "TEXT DEFAULT 'everyone'");
+migrate('privacy_who_can_call',    "TEXT DEFAULT 'everyone'");
 migrate('privacy_who_can_add',     "TEXT DEFAULT 'everyone'");
 migrate('privacy_show_online',     'INTEGER DEFAULT 1');
 

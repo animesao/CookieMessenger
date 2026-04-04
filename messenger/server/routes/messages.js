@@ -6,12 +6,12 @@ const { validateLengths } = require('../middleware/security');
 
 const router = express.Router();
 
-// Per-user cooldown: 1 message per second
+// Per-user cooldown: 1 message per 500ms (more reasonable for chat)
 const msgCooldown = new Map();
 function checkMsgCooldown(userId) {
   const now = Date.now();
   const last = msgCooldown.get(userId) || 0;
-  if (now - last < 1000) return false;
+  if (now - last < 500) return false;
   msgCooldown.set(userId, now);
   return true;
 }
@@ -27,7 +27,7 @@ function areFriends(a, b) {
 function canMessage(senderId, receiverId) {
   const receiver = db.prepare('SELECT privacy_who_can_message FROM users WHERE id = ?').get(receiverId);
   if (!receiver) return { ok: false, error: 'Пользователь не найден', status: 404 };
-  const setting = receiver.privacy_who_can_message || 'friends';
+  const setting = receiver.privacy_who_can_message || 'everyone'; // Changed default to 'everyone'
   if (setting === 'nobody') return { ok: false, error: 'Этот пользователь не принимает сообщения', status: 403 };
   if (setting === 'friends' && !areFriends(senderId, receiverId))
     return { ok: false, error: 'Этот пользователь принимает сообщения только от друзей', status: 403 };
@@ -117,8 +117,12 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
     FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
   `).get(result.lastInsertRowid);
 
-  ws.sendTo(receiverId, 'new_message', msg);
-  ws.sendTo(req.user.id, 'new_message', msg);
+  console.log(`[MSG] Sending message from ${req.user.id} to ${receiverId}, msg ID: ${msg.id}`);
+  
+  const sentToReceiver = ws.sendTo(receiverId, 'new_message', msg);
+  const sentToSender = ws.sendTo(req.user.id, 'new_message', msg);
+  
+  console.log(`[MSG] Delivered to receiver: ${sentToReceiver}, to sender: ${sentToSender}`);
 
   res.json(msg);
 });
