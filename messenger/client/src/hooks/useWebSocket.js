@@ -7,29 +7,6 @@ let reconnectTimer = null;
 let isConnecting = false;
 const pendingQueue = [];
 
-// Get one-time WebSocket ticket from server
-async function getWsTicket() {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) return null;
-
-    const res = await fetch('/api/auth/ws-ticket', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.ticket;
-  } catch (err) {
-    console.error('[WS] Failed to get ticket:', err);
-    return null;
-  }
-}
-
 async function connect() {
   const token = localStorage.getItem('token');
   if (!token) return;
@@ -38,24 +15,25 @@ async function connect() {
 
   isConnecting = true;
 
-  // Get one-time ticket instead of using token directly
-  const ticket = await getWsTicket();
-  if (!ticket) {
-    console.error('[WS] No ticket, cannot connect');
-    isConnecting = false;
-    return;
-  }
-
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const host = window.location.host;
-  const socket = new WebSocket(`${protocol}://${host}/ws?ticket=${ticket}`);
+  
+  // Send token in first message instead of URL
+  const socket = new WebSocket(`${protocol}://${host}/ws`);
   globalWs = socket;
 
   socket.onopen = () => {
     isConnecting = false;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    console.log('[WS] Connected');
-    while (pendingQueue.length) socket.send(pendingQueue.shift());
+    console.log('[WS] Connected, sending auth...');
+    
+    // Send auth token as first message
+    socket.send(JSON.stringify({ type: 'auth', token }));
+    
+    // Send queued messages after a short delay to ensure auth is processed
+    setTimeout(() => {
+      while (pendingQueue.length) socket.send(pendingQueue.shift());
+    }, 100);
   };
 
   socket.onmessage = (e) => {

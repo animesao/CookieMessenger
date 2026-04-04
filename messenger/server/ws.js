@@ -1,6 +1,8 @@
 const { WebSocketServer, WebSocket } = require('ws');
+const jwt = require('jsonwebtoken');
 const { wsRateLimit } = require('./middleware/security');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const clients = new Map(); // userId -> Set<ws>
 
 // Per-user WS message rate limit: max 30 messages per 10 seconds
@@ -32,36 +34,62 @@ function setup(server) {
       return;
     }
 
-    const url = new URL(req.url, 'http://localhost');
-    const ticket = url.searchParams.get('ticket');
-
-    // Verify one-time ticket instead of JWT
-    const { verifyWsTicket } = require('./routes/auth');
-    const userId = verifyWsTicket(ticket);
+    let userId = null;
+    let isAuthenticated = false;
     
-    if (!userId) {
-      ws.close(4001, 'Invalid or expired ticket');
-      return;
-    }
-
-    if (!clients.has(userId)) clients.set(userId, new Set());
-    // Limit concurrent connections per user (max 5 tabs)
-    if (clients.get(userId).size >= 5) {
-      ws.close(4002, 'Too many connections for this user');
-      return;
-    }
-    clients.get(userId).add(ws);
-    broadcast('user_online', { userId });
+    // Set timeout for authentication
+    const authTimeout = setTimeout(() => {
+      if (!isAuthenticated) {
+        console.log('[WS] Auth timeout');
+        ws.close(4001, 'Authentication timeout');
+      }
+    }, 5000);
 
     ws.on('message', (raw) => {
       // Reject oversized messages (max 64KB for signaling)
       if (raw.length > 65536) return;
 
-      // Rate limit per user
-      if (!checkWsMessageRate(userId)) return;
-
       try {
         const msg = JSON.parse(raw);
+        
+        // Handle authentication
+        if (!isAuthenticated && msg.type === 'auth') {
+          clearTimeout(authTimeout);
+          
+          try {
+            const payload = jwt.verify(msg.token, JWT_SECRET);
+            userId = payload.id;
+            isAuthenticated = true;
+            
+            if (!clients.has(userId)) clients.set(userId, new Set());
+            
+            // Limit concurrent connections per user (max 5 tabs)
+            if (clients.get(userId).size >= 5) {
+              ws.close(4002, 'Too many connections for this user');
+              return;
+            }
+            
+            clients.get(userId).add(ws);
+            broadcast('user_online', { userId });
+            console.log('[WS] User', userId, 'authenticated');
+            
+            // Send auth success
+            ws.send(JSON.stringify({ type: 'auth_ok' }));
+          } catch (err) {
+            console.error('[WS] Auth failed:', err.message);
+            ws.close(4001, 'Invalid token');
+          }
+          return;
+        }
+        
+        // Require authentication for all other messages
+        if (!isAuthenticated) {
+          ws.close(4001, 'Not authenticated');
+          return;
+        }
+
+        // Rate limit per user
+        if (!checkWsMessageRate(userId)) return;
 
         // Only relay whitelisted signaling events
         if (ALLOWED_SIGNALING.has(msg.event) && msg.to && Number.isInteger(msg.to)) {
@@ -99,10 +127,12 @@ function setup(server) {
     });
 
     ws.on('close', () => {
-      clients.get(userId)?.delete(ws);
-      if (clients.get(userId)?.size === 0) {
-        clients.delete(userId);
-        broadcast('user_offline', { userId });
+      if (userId && clients.has(userId)) {
+        clients.get(userId)?.delete(ws);
+        if (clients.get(userId)?.size === 0) {
+          clients.delete(userId);
+          broadcast('user_offline', { userId });
+        }
       }
     });
 
