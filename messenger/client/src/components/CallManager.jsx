@@ -204,7 +204,13 @@ export default function CallManager({ currentUser }) {
 
   // ── Start call ─────────────────────────────────────────────────────────────
   const startCall = useCallback(async (targetUser, type = 'audio') => {
-    if (callStateRef.current !== 'idle') return;
+    // Force cleanup any stale state before starting new call
+    if (callStateRef.current !== 'idle') {
+      console.log('[Call] Force cleanup stale state:', callStateRef.current);
+      cleanup();
+      // Wait a tick for cleanup to complete
+      await new Promise(r => setTimeout(r, 100));
+    }
     setCallStateSync('calling');
     setCallType(type);
     setRemoteUser(targetUser);
