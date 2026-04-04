@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CreatePost from '../components/CreatePost';
 import PostCard from '../components/PostCard';
 import NotificationBell from '../components/NotificationPanel';
-import UserProfile from './UserProfile';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Loader } from 'lucide-react';
 
 export default function Feed({ user, onOpenChat }) {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -14,7 +15,6 @@ export default function Feed({ user, onOpenChat }) {
   const [initial, setInitial] = useState(true);
   const [error, setError] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const [viewingUser, setViewingUser] = useState(null); // username string
   const notifRef = useRef(null);
   const accent = user.accent_color || '#fff';
 
@@ -111,20 +111,6 @@ export default function Feed({ user, onOpenChat }) {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, poll: updatedPoll } : p));
   };
 
-  // Viewing another user's profile
-  if (viewingUser) {
-    return (
-      <div className="feed-page">
-        <UserProfile
-          username={viewingUser}
-          currentUser={user}
-          onBack={() => setViewingUser(null)}
-          onOpenChat={onOpenChat}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="feed-page">
       <div className="feed-header">
@@ -159,7 +145,7 @@ export default function Feed({ user, onOpenChat }) {
               onDelete={handleDelete}
               onVote={handleVote}
               onUserClick={(username) => {
-                if (username !== user.username) setViewingUser(username);
+                if (username !== user.username) navigate(`/profile/${username}`);
               }}
             />
           ))}

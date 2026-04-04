@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, Camera, ImagePlus, FileText, Palette, Check,
   Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss,
@@ -8,6 +9,7 @@ import ImageCropper from '../components/ImageCropper';
 import ChangelogModal from '../components/ChangelogModal';
 import CallManager from '../components/CallManager';
 import PostCard from '../components/PostCard';
+import UserProfile from './UserProfile';
 import { validateFileSize } from '../utils/imageCompressor';
 import Admin from './Admin';
 import Settings from './Settings';
@@ -36,6 +38,27 @@ function formatDate(str) {
 }
 
 export default function Profile({ user, onUpdate, onLogout }) {
+  const { username } = useParams();
+  const navigate = useNavigate();
+  
+  // If viewing another user's profile
+  if (username && username !== user.username) {
+    return (
+      <UserProfile
+        username={username}
+        currentUser={user}
+        onBack={() => navigate('/profile')}
+        onOpenChat={(targetUser) => {
+          navigate('/profile');
+          setTimeout(() => {
+            setTab('messages');
+            setChatTarget(targetUser);
+          }, 100);
+        }}
+      />
+    );
+  }
+  
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState('profile');
   const [profileTab, setProfileTab] = useState('info'); // 'info' | 'posts'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupProfile from './pages/SetupProfile';
@@ -59,6 +59,14 @@ export default function App() {
       />
       <Route
         path="/profile"
+        element={
+          user
+            ? <Profile user={user} onUpdate={handleUpdate} onLogout={handleLogout} />
+            : <Navigate to="/login" />
+        }
+      />
+      <Route
+        path="/profile/:username"
         element={
           user
             ? <Profile user={user} onUpdate={handleUpdate} onLogout={handleLogout} />
