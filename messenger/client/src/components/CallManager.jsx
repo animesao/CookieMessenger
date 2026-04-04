@@ -222,13 +222,30 @@ export default function CallManager({ currentUser }) {
       });
       await conn.setLocalDescription(offer);
 
-      wsSend('call_offer', targetUser.id, {
-        offer,
-        type,
-        callerName: currentUser.display_name || currentUser.username,
-        callerAvatar: currentUser.avatar,
-        callerAccent: currentUser.accent_color,
-      });
+      // Wait for WS to be ready before sending offer
+      const sendOffer = () => {
+        wsSend('call_offer', targetUser.id, {
+          offer,
+          type,
+          callerName: currentUser.display_name || currentUser.username,
+          callerAvatar: currentUser.avatar,
+          callerAccent: currentUser.accent_color,
+        });
+      };
+
+      // Check if WS is connected, retry up to 3 times
+      let attempts = 0;
+      const trySend = () => {
+        attempts++;
+        try {
+          sendOffer();
+        } catch (e) {
+          if (attempts < 3) setTimeout(trySend, 1000);
+        }
+      };
+      // Small delay to ensure WS is stable after any reconnect
+      setTimeout(trySend, 300);
+
     } catch (err) {
       console.error('[Call] startCall error:', err);
       setCallError(err.message || 'Ошибка звонка');
