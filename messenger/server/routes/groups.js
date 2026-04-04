@@ -147,27 +147,30 @@ router.put('/:id', auth, validateLengths({ name: 50, description: 200 }), (req, 
 // ── POST /api/groups/:id/invite — invite user (private groups) ───────────────
 router.post('/:id/invite', auth, (req, res) => {
   const { userId } = req.body;
+  const targetId = parseInt(userId);
+  if (isNaN(targetId)) return res.status(400).json({ error: 'Неверный ID пользователя' });
+
   const group = db.prepare('SELECT * FROM groups WHERE id=?').get(req.params.id);
   if (!group) return res.status(404).json({ error: 'Группа не найдена' });
   if (!isMember(group.id, req.user.id)) return res.status(403).json({ error: 'Вы не в группе' });
 
-  const target = db.prepare('SELECT id, username, display_name, avatar, accent_color FROM users WHERE id=?').get(userId);
+  const target = db.prepare('SELECT id, username, display_name, avatar, accent_color FROM users WHERE id=?').get(targetId);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
-  if (isMember(group.id, userId)) return res.status(400).json({ error: 'Пользователь уже в группе' });
+  if (isMember(group.id, targetId)) return res.status(400).json({ error: 'Пользователь уже в группе' });
 
   // For public groups — add directly; for private — send invite
   if (group.type === 'public') {
-    db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)').run(group.id, userId, 'member');
-    ws.sendTo(userId, 'group_invite_accepted', { groupId: group.id, groupName: group.name });
+    db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)').run(group.id, targetId, 'member');
+    ws.sendTo(targetId, 'group_invite_accepted', { groupId: group.id, groupName: group.name });
     return res.json({ ok: true, added: true });
   }
 
   try {
-    db.prepare('INSERT INTO group_invites (group_id, inviter_id, invitee_id) VALUES (?, ?, ?)').run(group.id, req.user.id, userId);
+    db.prepare('INSERT INTO group_invites (group_id, inviter_id, invitee_id) VALUES (?, ?, ?)').run(group.id, req.user.id, targetId);
   } catch { return res.status(400).json({ error: 'Приглашение уже отправлено' }); }
 
   const inviter = db.prepare('SELECT id, username, display_name, avatar, accent_color FROM users WHERE id=?').get(req.user.id);
-  ws.sendTo(userId, 'group_invite', { groupId: group.id, groupName: group.name, groupAvatar: group.avatar, inviter });
+  ws.sendTo(targetId, 'group_invite', { groupId: group.id, groupName: group.name, groupAvatar: group.avatar, inviter });
 
   res.json({ ok: true, added: false });
 });
@@ -251,26 +254,32 @@ router.post('/:id/messages', auth, validateLengths({ content: 2000 }), (req, res
 
 // ── POST /api/groups/:id/kick/:userId (admin/owner) ───────────────────────────
 router.post('/:id/kick/:userId', auth, (req, res) => {
+  const targetId = parseInt(req.params.userId);
+  if (isNaN(targetId)) return res.status(400).json({ error: 'Неверный ID' });
   const group = db.prepare('SELECT * FROM groups WHERE id=?').get(req.params.id);
   if (!group) return res.status(404).json({ error: 'Группа не найдена' });
   if (!isAdmin(group.id, req.user.id)) return res.status(403).json({ error: 'Нет прав' });
-  if (parseInt(req.params.userId) === group.owner_id) return res.status(400).json({ error: 'Нельзя кикнуть владельца' });
+  if (targetId === group.owner_id) return res.status(400).json({ error: 'Нельзя кикнуть владельца' });
+  if (targetId === req.user.id) return res.status(400).json({ error: 'Нельзя кикнуть себя' });
 
-  db.prepare('DELETE FROM group_members WHERE group_id=? AND user_id=?').run(group.id, req.params.userId);
-  ws.sendTo(parseInt(req.params.userId), 'group_kicked', { groupId: group.id, groupName: group.name });
+  db.prepare('DELETE FROM group_members WHERE group_id=? AND user_id=?').run(group.id, targetId);
+  ws.sendTo(targetId, 'group_kicked', { groupId: group.id, groupName: group.name });
   res.json({ ok: true });
 });
 
 // ── POST /api/groups/:id/promote/:userId (owner only) ─────────────────────────
 router.post('/:id/promote/:userId', auth, (req, res) => {
+  const targetId = parseInt(req.params.userId);
+  if (isNaN(targetId)) return res.status(400).json({ error: 'Неверный ID' });
   const group = db.prepare('SELECT * FROM groups WHERE id=?').get(req.params.id);
   if (!group) return res.status(404).json({ error: 'Группа не найдена' });
   if (group.owner_id !== req.user.id) return res.status(403).json({ error: 'Только владелец' });
+  if (targetId === req.user.id) return res.status(400).json({ error: 'Нельзя изменить свою роль' });
 
   const { role } = req.body;
   if (!['admin', 'member'].includes(role)) return res.status(400).json({ error: 'Неверная роль' });
 
-  db.prepare('UPDATE group_members SET role=? WHERE group_id=? AND user_id=?').run(role, group.id, req.params.userId);
+  db.prepare('UPDATE group_members SET role=? WHERE group_id=? AND user_id=?').run(role, group.id, targetId);
   res.json({ ok: true });
 });
 

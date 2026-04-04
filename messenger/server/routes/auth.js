@@ -57,51 +57,93 @@ function userPayload(user) {
   };
 }
 
-// ── Simple math captcha verification ─────────────────────────────────────────
-// Client sends { captchaAnswer, captchaQuestion } — server verifies
-function verifyCaptcha(question, answer) {
-  if (!question || answer === undefined) return false;
-  try {
-    // question format: "X + Y" or "X - Y" or "X * Y"
-    const [a, op, b] = question.split(' ');
-    let expected;
-    if (op === '+') expected = parseInt(a) + parseInt(b);
-    else if (op === '-') expected = parseInt(a) - parseInt(b);
-    else if (op === '*') expected = parseInt(a) * parseInt(b);
-    else return false;
-    return parseInt(answer) === expected;
-  } catch { return false; }
+// ── In-memory captcha store (server-side) ────────────────────────────────────
+const captchaStore = new Map(); // token -> { answer, expiresAt }
+
+function generateServerCaptcha() {
+  const ops = ['+', '-', '*'];
+  const op = ops[Math.floor(Math.random() * ops.length)];
+  let a, b;
+  if (op === '+') { a = Math.floor(Math.random() * 20) + 1; b = Math.floor(Math.random() * 20) + 1; }
+  else if (op === '-') { a = Math.floor(Math.random() * 20) + 10; b = Math.floor(Math.random() * a) + 1; }
+  else { a = Math.floor(Math.random() * 9) + 2; b = Math.floor(Math.random() * 9) + 2; }
+  const answer = op === '+' ? a + b : op === '-' ? a - b : a * b;
+  const token = require('crypto').randomBytes(16).toString('hex');
+  captchaStore.set(token, { answer, expiresAt: Date.now() + 10 * 60_000 }); // 10 min TTL
+  // Cleanup expired
+  for (const [k, v] of captchaStore) { if (Date.now() > v.expiresAt) captchaStore.delete(k); }
+  return { token, question: `${a} ${op} ${b}` };
 }
+
+function verifyCaptchaToken(token, answer) {
+  const entry = captchaStore.get(token);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) { captchaStore.delete(token); return false; }
+  const ok = parseInt(answer) === entry.answer;
+  captchaStore.delete(token); // one-time use
+  return ok;
+}
+
+// ── Discord OAuth state store (prevent CSRF) ──────────────────────────────────
+const discordStateStore = new Map(); // state -> { mode, expiresAt }
+
+function createDiscordState(mode) {
+  const state = require('crypto').randomBytes(16).toString('hex') + '_' + mode;
+  discordStateStore.set(state, { mode, expiresAt: Date.now() + 10 * 60_000 });
+  return state;
+}
+
+function verifyDiscordState(state) {
+  const entry = discordStateStore.get(state);
+  if (!entry || Date.now() > entry.expiresAt) { discordStateStore.delete(state); return null; }
+  discordStateStore.delete(state);
+  return entry.mode;
+}
+
+// ── Discord token temp store (avoid passing in URL) ───────────────────────────
+const discordTempStore = new Map(); // tempKey -> { token, user, expiresAt }
+
+function storeDiscordTemp(data) {
+  const key = require('crypto').randomBytes(16).toString('hex');
+  discordTempStore.set(key, { ...data, expiresAt: Date.now() + 5 * 60_000 }); // 5 min
+  for (const [k, v] of discordTempStore) { if (Date.now() > v.expiresAt) discordTempStore.delete(k); }
+  return key;
+}
+
+function getDiscordTemp(key) {
+  const entry = discordTempStore.get(key);
+  if (!entry || Date.now() > entry.expiresAt) { discordTempStore.delete(key); return null; }
+  discordTempStore.delete(key); // one-time use
+  return entry;
+}
+
+// ── GET /api/auth/captcha — get server-side captcha ──────────────────────────
+router.get('/captcha', (req, res) => {
+  const { token, question } = generateServerCaptcha();
+  res.json({ token, question });
+});
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', authLimiter, validateRegistration, async (req, res) => {
-  const { username, email, password, captchaQuestion, captchaAnswer, discordToken } = req.body;
+  const { username, email, password, captchaToken, captchaAnswer, discordKey } = req.body;
 
-  // Verify captcha
-  if (!verifyCaptcha(captchaQuestion, captchaAnswer))
-    return res.status(400).json({ error: 'Неверный ответ на капчу' });
+  // Verify server-side captcha
+  if (!verifyCaptchaToken(captchaToken, captchaAnswer))
+    return res.status(400).json({ error: 'Неверный ответ на капчу или капча устарела' });
 
-  // Verify Discord if provided
-  let discordId = null;
-  if (discordToken) {
-    try {
-      const discordUser = await httpsGet('https://discord.com/api/users/@me', {
-        Authorization: `Bearer ${discordToken}`,
-      });
-      if (!discordUser.id) return res.status(400).json({ error: 'Неверный Discord токен' });
-      discordId = discordUser.id;
-      // Check if this Discord account is already used
-      const existing = db.prepare('SELECT id FROM users WHERE discord_id = ?').get(discordId);
-      if (existing) return res.status(409).json({ error: 'Этот Discord аккаунт уже привязан к другому пользователю' });
-    } catch {
-      return res.status(400).json({ error: 'Ошибка проверки Discord' });
-    }
-  }
+  // Verify Discord — required
+  if (!discordKey) return res.status(400).json({ error: 'Требуется подтверждение через Discord' });
+  const discordData = getDiscordTemp(discordKey);
+  if (!discordData) return res.status(400).json({ error: 'Discord сессия истекла. Авторизуйтесь снова.' });
+
+  const discordId = discordData.discordId;
+  const existing = db.prepare('SELECT id FROM users WHERE discord_id = ?').get(discordId);
+  if (existing) return res.status(409).json({ error: 'Этот Discord аккаунт уже привязан' });
 
   try {
     const hashed = await bcrypt.hash(password, 12);
-    const stmt = db.prepare('INSERT INTO users (username, email, password, discord_id, discord_verified) VALUES (?, ?, ?, ?, ?)');
-    stmt.run(username, email.toLowerCase().trim(), hashed, discordId, discordId ? 1 : 0);
+    db.prepare('INSERT INTO users (username, email, password, discord_id, discord_verified) VALUES (?, ?, ?, ?, 1)')
+      .run(username, email.toLowerCase().trim(), hashed, discordId);
     res.json({ message: 'Регистрация успешна' });
   } catch (err) {
     if (err.message.includes('UNIQUE'))
@@ -131,15 +173,16 @@ router.post('/login', authLimiter, async (req, res) => {
 
 // ── GET /api/auth/discord — redirect to Discord OAuth ────────────────────────
 router.get('/discord', (req, res) => {
-  const { mode = 'register' } = req.query; // mode: register | link
+  const { mode = 'register' } = req.query;
   if (!DISCORD_CLIENT_ID) return res.status(500).json({ error: 'Discord OAuth не настроен' });
 
+  const state = createDiscordState(mode);
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     redirect_uri: DISCORD_REDIRECT_URI,
     response_type: 'code',
     scope: 'identify email',
-    state: mode,
+    state,
   });
   res.redirect(`https://discord.com/api/oauth2/authorize?${params}`);
 });
@@ -147,10 +190,13 @@ router.get('/discord', (req, res) => {
 // ── GET /api/auth/discord/callback ───────────────────────────────────────────
 router.get('/discord/callback', async (req, res) => {
   const { code, state } = req.query;
-  if (!code) return res.redirect('/?error=discord_cancelled');
+  if (!code) return res.redirect('/register?error=discord_cancelled');
+
+  // Verify state to prevent CSRF
+  const mode = verifyDiscordState(state);
+  if (!mode) return res.redirect('/register?error=invalid_state');
 
   try {
-    // Exchange code for token
     const tokenData = await httpsPost('https://discord.com/api/oauth2/token', {
       client_id: DISCORD_CLIENT_ID,
       client_secret: DISCORD_CLIENT_SECRET,
@@ -159,64 +205,48 @@ router.get('/discord/callback', async (req, res) => {
       redirect_uri: DISCORD_REDIRECT_URI,
     });
 
-    if (!tokenData.access_token) return res.redirect('/?error=discord_token_failed');
+    if (!tokenData.access_token) return res.redirect('/register?error=discord_token_failed');
 
-    // Get Discord user info
     const discordUser = await httpsGet('https://discord.com/api/users/@me', {
       Authorization: `Bearer ${tokenData.access_token}`,
     });
 
-    if (!discordUser.id) return res.redirect('/?error=discord_user_failed');
+    if (!discordUser.id) return res.redirect('/register?error=discord_user_failed');
 
-    // If mode is 'register' — pass discord token back to frontend for registration
-    if (state === 'register') {
-      const params = new URLSearchParams({
-        discord_token: tokenData.access_token,
-        discord_username: discordUser.username,
-        discord_avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : '',
-        discord_email: discordUser.email || '',
+    if (mode === 'register') {
+      // Store Discord data server-side, pass only a temp key to frontend
+      const tempKey = storeDiscordTemp({
+        discordId: discordUser.id,
+        username: discordUser.username,
+        email: discordUser.email || '',
+        avatar: discordUser.avatar
+          ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+          : '',
       });
-      return res.redirect(`/register?${params}`);
+      return res.redirect(`/register?dk=${tempKey}`);
     }
 
-    // If mode is 'link' — link to existing account (requires JWT in state)
-    // For now just redirect with token for frontend to handle
-    const params = new URLSearchParams({
-      discord_token: tokenData.access_token,
-      discord_id: discordUser.id,
-    });
-    res.redirect(`/profile?${params}`);
-
+    res.redirect('/profile');
   } catch (err) {
-    console.error('Discord OAuth error:', err);
-    res.redirect('/?error=discord_error');
+    console.error('Discord OAuth error:', err.message);
+    res.redirect('/register?error=discord_error');
   }
 });
 
-// ── POST /api/auth/discord/verify — verify discord token and get user info ───
-router.post('/discord/verify', authLimiter, async (req, res) => {
-  const { discord_token } = req.body;
-  if (!discord_token) return res.status(400).json({ error: 'Нет токена' });
-
-  try {
-    const discordUser = await httpsGet('https://discord.com/api/users/@me', {
-      Authorization: `Bearer ${discord_token}`,
-    });
-    if (!discordUser.id) return res.status(400).json({ error: 'Неверный токен' });
-
-    // Check if already registered
-    const existing = db.prepare('SELECT id FROM users WHERE discord_id = ?').get(discordUser.id);
-    if (existing) return res.status(409).json({ error: 'Этот Discord аккаунт уже зарегистрирован' });
-
-    res.json({
-      id: discordUser.id,
-      username: discordUser.username,
-      email: discordUser.email || '',
-      avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null,
-    });
-  } catch {
-    res.status(400).json({ error: 'Ошибка проверки Discord' });
-  }
+// ── POST /api/auth/discord/session — get discord user info by temp key ────────
+router.post('/discord/session', authLimiter, (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ error: 'Нет ключа' });
+  const data = getDiscordTemp(key);
+  if (!data) return res.status(400).json({ error: 'Сессия истекла. Авторизуйтесь через Discord снова.' });
+  // Re-store since we consumed it — client needs it for registration too
+  const newKey = storeDiscordTemp(data);
+  res.json({
+    key: newKey,
+    username: data.username,
+    email: data.email,
+    avatar: data.avatar,
+  });
 });
 
 module.exports = router;
