@@ -197,6 +197,15 @@ export default function CallManager({ currentUser }) {
       } : false,
     });
 
+    // Verify audio track is active
+    const audioTracks = stream.getAudioTracks();
+    console.log('[Call] Audio tracks:', audioTracks.length, audioTracks.map(t => ({
+      id: t.id,
+      enabled: t.enabled,
+      muted: t.muted,
+      readyState: t.readyState,
+    })));
+
     localStream.current = stream;
     if (localVideoRef.current && type === 'video') {
       localVideoRef.current.srcObject = stream;
@@ -243,7 +252,15 @@ export default function CallManager({ currentUser }) {
     try {
       const stream = await getMedia(type);
       const conn = createPC(targetUser.id);
-      stream.getTracks().forEach(t => conn.addTrack(t, stream));
+      
+      // Add tracks and verify they're added
+      const senders = [];
+      stream.getTracks().forEach(t => {
+        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled);
+        const sender = conn.addTrack(t, stream);
+        senders.push(sender);
+      });
+      console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
 
       const offer = await conn.createOffer({
         offerToReceiveAudio: true,
@@ -289,7 +306,15 @@ export default function CallManager({ currentUser }) {
     try {
       const stream = await getMedia(incoming.type || 'audio');
       const conn = createPC(incoming.from);
-      stream.getTracks().forEach(t => conn.addTrack(t, stream));
+      
+      // Add tracks and verify they're added
+      const senders = [];
+      stream.getTracks().forEach(t => {
+        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled);
+        const sender = conn.addTrack(t, stream);
+        senders.push(sender);
+      });
+      console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
 
       console.log('[Call] Setting remote description');
       await conn.setRemoteDescription(new RTCSessionDescription(incoming.offer));
