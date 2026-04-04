@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, UserPlus, UserCheck, Users, FileText } from 'lucide-react';
+import { ArrowLeft, UserPlus, UserCheck, Users, FileText, MessageSquare, Shield } from 'lucide-react';
 import PostCard from '../components/PostCard';
 
 function Avatar({ user, size = 80 }) {
@@ -18,6 +18,7 @@ function Avatar({ user, size = 80 }) {
 
 export default function UserProfile({ username, currentUser, onBack, onOpenChat }) {
   const [profile, setProfile] = useState(null);
+  const [profileError, setProfileError] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
@@ -30,11 +31,18 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
+    setProfileError(null);
     try {
       const res = await fetch(`/api/users/${username}`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
-      if (res.ok) setProfile(await res.json());
+      if (res.ok) {
+        setProfile(await res.json());
+      } else if (res.status === 403) {
+        setProfileError('closed');
+      } else {
+        setProfileError('notfound');
+      }
     } finally { setLoading(false); }
   }, [username]);
 
@@ -124,6 +132,16 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
   };
 
   if (loading) return <div className="up-loading">Загрузка...</div>;
+  if (profileError === 'closed') return (
+    <div className="up-loading">
+      <button className="up-back" onClick={onBack}><ArrowLeft size={16} /> Назад</button>
+      <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+        <Shield size={40} style={{ color: '#555', marginBottom: '1rem' }} />
+        <p style={{ color: '#aaa', fontSize: '1rem' }}>Профиль закрыт</p>
+        <span style={{ color: '#555', fontSize: '0.85rem' }}>Этот пользователь скрыл свой профиль</span>
+      </div>
+    </div>
+  );
   if (!profile) return <div className="up-loading">Пользователь не найден</div>;
 
   const accent = profile.accent_color || '#fff';
