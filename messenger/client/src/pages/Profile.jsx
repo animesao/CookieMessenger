@@ -8,6 +8,7 @@ import ImageCropper from '../components/ImageCropper';
 import ChangelogModal from '../components/ChangelogModal';
 import CallManager from '../components/CallManager';
 import PostCard from '../components/PostCard';
+import { validateFileSize } from '../utils/imageCompressor';
 import Admin from './Admin';
 import Settings from './Settings';
 import Feed from './Feed';
@@ -183,6 +184,10 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const handleAvatar = async e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!validateFileSize(file)) {
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => { setCropSrc(ev.target.result); setCropType('avatar'); };
     reader.readAsDataURL(file);
@@ -192,6 +197,10 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const handleBanner = async e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!validateFileSize(file)) {
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => { setCropSrc(ev.target.result); setCropType('banner'); };
     reader.readAsDataURL(file);

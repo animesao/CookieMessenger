@@ -5,6 +5,7 @@ import {
   ArrowRight, Sparkles, Check
 } from 'lucide-react';
 import ImageCropper from '../components/ImageCropper';
+import { validateFileSize } from '../utils/imageCompressor';
 
 const ACCENT_COLORS = [
   '#ffffff', '#a8a8a8', '#ff6b6b', '#ffa94d',
@@ -38,6 +39,10 @@ export default function SetupProfile({ onComplete }) {
   const handleAvatar = e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!validateFileSize(file)) {
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => { setCropSrc(ev.target.result); setCropType('avatar'); };
     reader.readAsDataURL(file);
@@ -47,6 +52,10 @@ export default function SetupProfile({ onComplete }) {
   const handleBanner = e => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!validateFileSize(file)) {
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = ev => { setCropSrc(ev.target.result); setCropType('banner'); };
     reader.readAsDataURL(file);
