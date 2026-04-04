@@ -5,16 +5,13 @@ import {
   Mic, MicOff, Monitor, MonitorOff,
 } from 'lucide-react';
 
-// ── ICE servers ───────────────────────────────────────────────────────────────
+// ── ICE servers — STUN + free TURN (metered.ca) ───────────────────────────────
 const ICE_SERVERS = [
-  // Google STUN servers
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
-  
-  // Free TURN servers - Metered
+  // Free TURN servers for NAT traversal
   {
     urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
@@ -30,9 +27,6 @@ const ICE_SERVERS = [
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
-  
-  // Twilio STUN
-  { urls: 'stun:global.stun.twilio.com:3478' },
 ];
 
 // ── Ringtone ──────────────────────────────────────────────────────────────────
@@ -62,10 +56,8 @@ function useRingtone() {
   }, []);
 
   const stop = useCallback(() => {
-    if (interval.current) {
-      clearInterval(interval.current);
-      interval.current = null;
-    }
+    clearInterval(interval.current);
+    interval.current = null;
   }, []);
 
   return { ring, stop };
@@ -86,62 +78,52 @@ export default function CallManager({ currentUser }) {
   const callStateRef = useRef('idle');
   const remoteUserRef = useRef(null);
   const incomingDataRef = useRef(null);
-  const iceCandidateBuffer = useRef([]);
+  const iceCandidateBuffer = useRef([]); // buffer ICE candidates until remote desc is set
 
   const pc = useRef(null);
   const localStream = useRef(null);
   const screenStream = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const remoteAudioRef = useRef(null);
   const durationTimer = useRef(null);
   const callTimeout = useRef(null);
   const ringtone = useRingtone();
 
-  const setCallStateSync = useCallback((s) => {
-    console.log('[Call] State:', callStateRef.current, '->', s);
+  const setCallStateSync = (s) => {
     callStateRef.current = s;
     setCallState(s);
-  }, []);
+  };
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
-    console.log('[Call] Cleanup');
-    if (durationTimer.current) clearInterval(durationTimer.current);
-    if (callTimeout.current) clearTimeout(callTimeout.current);
+    clearInterval(durationTimer.current);
+    clearTimeout(callTimeout.current);
     durationTimer.current = null;
     callTimeout.current = null;
     ringtone.stop();
-    
+
     try { localStream.current?.getTracks().forEach(t => t.stop()); } catch {}
     try { screenStream.current?.getTracks().forEach(t => t.stop()); } catch {}
     localStream.current = null;
     screenStream.current = null;
-    
-    if (pc.current) {
-      try { pc.current.close(); } catch {}
-      pc.current = null;
-    }
-    
+
+    try { pc.current?.close(); } catch {}
+    pc.current = null;
+
     iceCandidateBuffer.current = [];
     remoteUserRef.current = null;
     incomingDataRef.current = null;
-    
+
     setCallStateSync('idle');
     setCallDuration(0);
     setConnectionState('');
-    setMicOn(true);
-    setCamOn(true);
-    setScreenOn(false);
+    setMicOn(true); setCamOn(true); setScreenOn(false);
     setRemoteUser(null);
-  }, [ringtone, setCallStateSync]);
+  }, [ringtone]);
 
   // ── Create PeerConnection ──────────────────────────────────────────────────
   const createPC = useCallback((targetId) => {
-    console.log('[Call] Creating PeerConnection for', targetId);
-    if (pc.current) {
-      try { pc.current.close(); } catch {}
-    }
+    if (pc.current) { try { pc.current.close(); } catch {} }
     iceCandidateBuffer.current = [];
 
     const conn = new RTCPeerConnection({
@@ -149,67 +131,44 @@ export default function CallManager({ currentUser }) {
       iceCandidatePoolSize: 10,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
-      iceTransportPolicy: 'all', // Use both STUN and TURN
     });
 
     conn.onicecandidate = (e) => {
-      if (e.candidate) {
-        console.log('[Call] ICE candidate:', e.candidate.type, e.candidate.address || e.candidate.candidate);
-        wsSend('call_ice', targetId, { candidate: e.candidate });
-      } else {
-        console.log('[Call] ICE gathering complete');
-      }
+      if (e.candidate) wsSend('call_ice', targetId, { candidate: e.candidate });
     };
 
     conn.oniceconnectionstatechange = () => {
-      console.log('[Call] ICE state:', conn.iceConnectionState);
       setConnectionState(conn.iceConnectionState);
-      if (conn.iceConnectionState === 'failed' && conn.restartIce) {
-        console.log('[Call] ICE failed, restarting');
-        conn.restartIce();
+      if (conn.iceConnectionState === 'failed') {
+        // Try ICE restart
+        if (conn.restartIce) conn.restartIce();
       }
     };
 
     conn.onconnectionstatechange = () => {
-      console.log('[Call] Connection state:', conn.connectionState);
       setConnectionState(conn.connectionState);
-      if (['failed', 'closed'].includes(conn.connectionState)) {
-        console.log('[Call] Connection failed/closed, ending call');
+      if (['disconnected', 'failed', 'closed'].includes(conn.connectionState)) {
         const ru = remoteUserRef.current;
         const id = incomingDataRef.current;
         if (ru) wsSend('call_end', ru.id, {});
         else if (id) wsSend('call_end', id.from, {});
-        setTimeout(cleanup, 100);
+        cleanup();
       }
     };
 
     conn.ontrack = (e) => {
-      console.log('[Call] Received remote track:', e.track.kind, e.track.id);
-      console.log('[Call] Remote streams:', e.streams.length);
-      
-      if (e.streams[0]) {
-        const stream = e.streams[0];
-        console.log('[Call] Remote stream tracks:', stream.getTracks().map(t => ({
-          kind: t.kind,
-          id: t.id,
-          enabled: t.enabled,
-          muted: t.muted,
-          readyState: t.readyState,
-        })));
-        
-        // Set stream to both video and audio elements
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.play().catch(err => {
-            console.error('[Call] Remote video play error:', err);
-          });
+      if (e.track.kind === 'audio') {
+        if (!window.remoteAudio) {
+          const audioEl = new Audio();
+          audioEl.autoplay = true;
+          window.remoteAudio = audioEl;
         }
-        
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(err => {
-            console.error('[Call] Remote audio play error:', err);
-          });
+        if (e.streams[0]) {
+          window.remoteAudio.srcObject = e.streams[0];
+        }
+      } else if (e.track.kind === 'video') {
+        if (remoteVideoRef.current && e.streams[0]) {
+          remoteVideoRef.current.srcObject = e.streams[0];
         }
       }
     };
@@ -218,112 +177,57 @@ export default function CallManager({ currentUser }) {
     return conn;
   }, [cleanup]);
 
-  // ── Get local media ────────────────────────────────────────────────────────
+  // ── Get local media with noise suppression ────────────────────────────────
   const getMedia = useCallback(async (type) => {
-    console.log('[Call] Getting media, type:', type);
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Для звонков требуется HTTPS');
+      throw new Error('Для звонков требуется HTTPS. Откройте сайт по защищённому соединению.');
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000,
-          channelCount: 1,
-        },
-        video: type === 'video' ? {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 },
-        } : false,
-      });
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      sampleRate: 48000,
+      channelCount: 1,
+      latency: 0,
+    };
 
-      // Verify audio track is active
-      const audioTracks = stream.getAudioTracks();
-      console.log('[Call] Audio tracks:', audioTracks.length);
-      
-      audioTracks.forEach((track, i) => {
-        console.log(`[Call] Audio track ${i}:`, {
-          id: track.id,
-          label: track.label,
-          enabled: track.enabled,
-          muted: track.muted,
-          readyState: track.readyState,
-          settings: track.getSettings(),
-        });
-        
-        // Ensure track is enabled
-        track.enabled = true;
-      });
+    const videoConstraints = type === 'video' ? {
+      width: { ideal: 1280, max: 1920 },
+      height: { ideal: 720, max: 1080 },
+      frameRate: { ideal: 30, max: 60 },
+      facingMode: 'user',
+    } : false;
 
-      if (audioTracks.length === 0) {
-        throw new Error('Не удалось получить доступ к микрофону');
-      }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: audioConstraints,
+      video: videoConstraints,
+    });
 
-      localStream.current = stream;
-      if (localVideoRef.current && type === 'video') {
-        localVideoRef.current.srcObject = stream;
-      }
-      
-      return stream;
-    } catch (err) {
-      console.error('[Call] getUserMedia error:', err);
-      if (err.name === 'NotAllowedError') {
-        throw new Error('Доступ к микрофону запрещен. Разрешите доступ в настройках браузера');
-      } else if (err.name === 'NotFoundError') {
-        throw new Error('Микрофон не найден');
-      } else {
-        throw new Error('Ошибка доступа к микрофону: ' + err.message);
-      }
+    localStream.current = stream;
+    if (localVideoRef.current && type === 'video') {
+      localVideoRef.current.srcObject = stream;
     }
+    return stream;
   }, []);
 
-  // ── Flush ICE candidates ───────────────────────────────────────────────────
+  // ── Flush buffered ICE candidates ─────────────────────────────────────────
   const flushIceCandidates = useCallback(async () => {
-    if (!pc.current?.remoteDescription) return;
+    if (!pc.current || !pc.current.remoteDescription) return;
     const buf = iceCandidateBuffer.current.splice(0);
-    console.log('[Call] Flushing', buf.length, 'ICE candidates');
     for (const candidate of buf) {
-      try {
-        await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error('[Call] Failed to add ICE candidate:', err);
-      }
+      try { await pc.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
     }
   }, []);
 
   // ── Start call ─────────────────────────────────────────────────────────────
   const startCall = useCallback(async (targetUser, type = 'audio') => {
-    console.log('[Call] Starting call to', targetUser.username, 'type:', type);
-    console.log('[Call] WebSocket readyState:', wsReadyState());
-    
-    // Check if already in call
+    // Force cleanup any stale state before starting new call
     if (callStateRef.current !== 'idle') {
-      console.log('[Call] Already in call, cleaning up first');
+      console.log('[Call] Force cleanup stale state:', callStateRef.current);
       cleanup();
-      await new Promise(r => setTimeout(r, 200));
-    }
-
-    // Check WebSocket - allow CONNECTING state too
-    const wsState = wsReadyState();
-    if (wsState !== 1 && wsState !== 0) {
-      console.error('[Call] WebSocket not ready, state:', wsState);
-      setCallError('Нет соединения');
-      return;
-    }
-    
-    // If connecting, wait a bit
-    if (wsState === 0) {
-      console.log('[Call] WebSocket connecting, waiting...');
-      await new Promise(r => setTimeout(r, 500));
-      if (wsReadyState() !== 1) {
-        console.error('[Call] WebSocket still not ready after wait');
-        setCallError('Нет соединения');
-        return;
-      }
+      // Wait a tick for cleanup to complete
+      await new Promise(r => setTimeout(r, 100));
     }
 
     setCallStateSync('calling');
@@ -334,35 +238,22 @@ export default function CallManager({ currentUser }) {
     try {
       const stream = await getMedia(type);
       const conn = createPC(targetUser.id);
-      
-      // Add tracks and verify they're added
-      const senders = [];
-      stream.getTracks().forEach(t => {
-        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled, 'readyState:', t.readyState);
-        const sender = conn.addTrack(t, stream);
-        senders.push(sender);
-        
-        // Log sender parameters
-        console.log('[Call] Sender params:', sender.track?.kind, sender.track?.enabled);
-      });
-      console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
-      
-      // Verify senders
-      const allSenders = conn.getSenders();
-      console.log('[Call] Total senders:', allSenders.length);
-      allSenders.forEach((s, i) => {
-        if (s.track) {
-          console.log(`[Call] Sender ${i}:`, s.track.kind, s.track.enabled, s.track.readyState);
-        }
-      });
+      stream.getTracks().forEach(t => conn.addTrack(t, stream));
 
       const offer = await conn.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: type === 'video',
+        voiceActivityDetection: true,
       });
       await conn.setLocalDescription(offer);
 
-      console.log('[Call] Sending offer, SDP:', offer.sdp.substring(0, 200) + '...');
+      // Send offer — check WS is open
+      if (wsReadyState() !== 1) {
+        setCallError('Нет соединения. Попробуйте снова.');
+        cleanup();
+        return;
+      }
+
       wsSend('call_offer', targetUser.id, {
         offer,
         type,
@@ -371,78 +262,54 @@ export default function CallManager({ currentUser }) {
         callerAccent: currentUser.accent_color,
       });
 
-      // Timeout
+      // Timeout: 30 seconds for answer
       callTimeout.current = setTimeout(() => {
         if (callStateRef.current === 'calling') {
-          console.log('[Call] No answer timeout - state is still calling');
-          console.log('[Call] This means the other person did not answer or answer was not delivered');
           setCallError('Нет ответа');
           cleanup();
         }
       }, 30000);
 
     } catch (err) {
-      console.error('[Call] Start call error:', err);
+      console.error('[Call] startCall error:', err);
       setCallError(err.message || 'Ошибка звонка');
       cleanup();
     }
-  }, [getMedia, createPC, currentUser, cleanup, setCallStateSync]);
+  }, [getMedia, createPC, currentUser, cleanup]);
 
   // ── Answer call ────────────────────────────────────────────────────────────
   const answerCall = useCallback(async () => {
     const incoming = incomingDataRef.current;
     if (!incoming) return;
-    
-    console.log('[Call] Answering call from', incoming.from);
-    if (callTimeout.current) clearTimeout(callTimeout.current);
+
+    clearTimeout(callTimeout.current);
     ringtone.stop();
     setCallStateSync('active');
 
     try {
       const stream = await getMedia(incoming.type || 'audio');
       const conn = createPC(incoming.from);
-      
-      // Add tracks and verify they're added
-      const senders = [];
-      stream.getTracks().forEach(t => {
-        console.log('[Call] Adding track:', t.kind, t.id, 'enabled:', t.enabled, 'readyState:', t.readyState);
-        const sender = conn.addTrack(t, stream);
-        senders.push(sender);
-        
-        // Log sender parameters
-        console.log('[Call] Sender params:', sender.track?.kind, sender.track?.enabled);
-      });
-      console.log('[Call] Added', senders.length, 'tracks to PeerConnection');
-      
-      // Verify senders
-      const allSenders = conn.getSenders();
-      console.log('[Call] Total senders:', allSenders.length);
-      allSenders.forEach((s, i) => {
-        if (s.track) {
-          console.log(`[Call] Sender ${i}:`, s.track.kind, s.track.enabled, s.track.readyState);
-        }
-      });
+      stream.getTracks().forEach(t => conn.addTrack(t, stream));
 
-      console.log('[Call] Setting remote description');
       await conn.setRemoteDescription(new RTCSessionDescription(incoming.offer));
       await flushIceCandidates();
 
-      const answer = await conn.createAnswer();
+      const answer = await conn.createAnswer({
+        voiceActivityDetection: true,
+      });
       await conn.setLocalDescription(answer);
 
-      console.log('[Call] Sending answer, SDP:', answer.sdp.substring(0, 200) + '...');
       wsSend('call_answer', incoming.from, { answer });
       durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
     } catch (err) {
-      console.error('[Call] Answer error:', err);
-      setCallError(err.message || 'Ошибка ответа');
+      console.error('[Call] answerCall error:', err);
+      setCallError(err.message || 'Ошибка при ответе на звонок');
       cleanup();
     }
-  }, [ringtone, getMedia, createPC, flushIceCandidates, cleanup, setCallStateSync]);
+  }, [ringtone, getMedia, createPC, flushIceCandidates, cleanup]);
 
   // ── Reject ─────────────────────────────────────────────────────────────────
   const rejectCall = useCallback(() => {
-    console.log('[Call] Rejecting call');
     const incoming = incomingDataRef.current;
     if (incoming) wsSend('call_reject', incoming.from, {});
     cleanup();
@@ -450,7 +317,6 @@ export default function CallManager({ currentUser }) {
 
   // ── End call ───────────────────────────────────────────────────────────────
   const endCall = useCallback(() => {
-    console.log('[Call] Ending call');
     const ru = remoteUserRef.current;
     const id = incomingDataRef.current;
     if (ru) wsSend('call_end', ru.id, {});
@@ -458,18 +324,20 @@ export default function CallManager({ currentUser }) {
     cleanup();
   }, [cleanup]);
 
-  // ── Toggle controls ────────────────────────────────────────────────────────
-  const toggleMic = useCallback(() => {
+  // ── Toggle mic ─────────────────────────────────────────────────────────────
+  const toggleMic = () => {
     localStream.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
     setMicOn(v => !v);
-  }, []);
+  };
 
-  const toggleCam = useCallback(() => {
+  // ── Toggle camera ──────────────────────────────────────────────────────────
+  const toggleCam = () => {
     localStream.current?.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
     setCamOn(v => !v);
-  }, []);
+  };
 
-  const toggleScreen = useCallback(async () => {
+  // ── Screen share ───────────────────────────────────────────────────────────
+  const toggleScreen = async () => {
     if (!pc.current) return;
     if (screenOn) {
       screenStream.current?.getTracks().forEach(t => t.stop());
@@ -477,13 +345,13 @@ export default function CallManager({ currentUser }) {
       const videoTrack = localStream.current?.getVideoTracks()[0];
       if (videoTrack) {
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) await sender.replaceTrack(videoTrack);
+        await sender?.replaceTrack(videoTrack);
         if (localVideoRef.current) localVideoRef.current.srcObject = localStream.current;
       }
       setScreenOn(false);
     } else {
       try {
-        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         screenStream.current = screen;
         const screenTrack = screen.getVideoTracks()[0];
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
@@ -494,18 +362,15 @@ export default function CallManager({ currentUser }) {
         setScreenOn(true);
       } catch {}
     }
-  }, [screenOn]);
+  };
 
-  // ── WebSocket handlers ─────────────────────────────────────────────────────
+  // ── WS signaling ──────────────────────────────────────────────────────────
   useWebSocket({
-    call_offer: useCallback((data) => {
-      console.log('[Call] Received offer from', data.from);
+    call_offer: (data) => {
       if (callStateRef.current !== 'idle') {
-        console.log('[Call] Busy, sending busy signal');
         wsSend('call_busy', data.from, {});
         return;
       }
-      
       incomingDataRef.current = data;
       setCallType(data.type || 'audio');
       const ru = {
@@ -519,79 +384,66 @@ export default function CallManager({ currentUser }) {
       setCallStateSync('incoming');
       ringtone.ring();
 
+      // Timeout: 45 seconds for incoming call
       callTimeout.current = setTimeout(() => {
         if (callStateRef.current === 'incoming') {
-          console.log('[Call] Incoming timeout');
           wsSend('call_reject', data.from, {});
           cleanup();
         }
       }, 45000);
-    }, [ringtone, cleanup, setCallStateSync]),
+    },
 
-    call_answer: useCallback(async (data) => {
-      console.log('[Call] Received answer from', data.from || 'unknown');
-      console.log('[Call] Answer SDP:', data.answer?.sdp?.substring(0, 200) + '...');
-      
-      if (!pc.current) {
-        console.error('[Call] No PeerConnection when receiving answer');
-        return;
-      }
-      
-      if (callTimeout.current) clearTimeout(callTimeout.current);
-      
+    call_answer: async (data) => {
+      if (!pc.current) return;
+      clearTimeout(callTimeout.current);
       try {
-        console.log('[Call] Setting remote description (answer)');
         await pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-        console.log('[Call] Remote description set successfully');
-        
         await flushIceCandidates();
         setCallStateSync('active');
         durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-        console.log('[Call] Call is now active');
       } catch (err) {
-        console.error('[Call] Answer processing error:', err);
+        console.error('[Call] setRemoteDescription error:', err);
         setCallError('Ошибка соединения');
         cleanup();
       }
-    }, [flushIceCandidates, cleanup, setCallStateSync]),
+    },
 
-    call_ice: useCallback(async (data) => {
+    call_ice: async (data) => {
       if (!data.candidate) return;
-      console.log('[Call] Received ICE candidate');
       try {
         if (pc.current?.remoteDescription) {
           await pc.current.addIceCandidate(new RTCIceCandidate(data.candidate));
         } else {
+          // Buffer until remote description is set
           iceCandidateBuffer.current.push(data.candidate);
         }
       } catch (err) {
-        console.error('[Call] ICE error:', err);
+        console.error('[Call] ICE candidate error:', err);
       }
-    }, []),
+    },
 
-    call_reject: useCallback(() => {
-      console.log('[Call] Call rejected');
+    call_reject: () => {
       setCallError('Звонок отклонён');
       cleanup();
-    }, [cleanup]),
+    },
 
-    call_end: useCallback(() => {
-      console.log('[Call] Call ended by remote');
+    call_end: () => {
       cleanup();
-    }, [cleanup]),
+    },
 
-    call_busy: useCallback(() => {
-      console.log('[Call] Remote is busy');
+    call_busy: () => {
       setCallError('Абонент занят');
       cleanup();
-    }, [cleanup]),
+    },
   });
 
   // Expose startCall globally
+  const startCallRef = useRef(startCall);
+  useEffect(() => { startCallRef.current = startCall; }, [startCall]);
   useEffect(() => {
-    window.__startCall = startCall;
+    window.__startCall = (...args) => startCallRef.current(...args);
     return () => { delete window.__startCall; };
-  }, [startCall]);
+  }, []);
 
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const accent = remoteUser?.accent_color || currentUser?.accent_color || '#fff';
@@ -650,23 +502,7 @@ export default function CallManager({ currentUser }) {
       {/* Active */}
       {callState === 'active' && (
         <div className="call-active">
-          {/* Always render audio element for remote audio */}
-          <audio 
-            ref={remoteAudioRef} 
-            autoPlay 
-            playsInline
-            style={{ display: 'none' }}
-          />
-          
-          {/* Video element for video calls */}
-          <video 
-            ref={remoteVideoRef} 
-            className="call-remote-video" 
-            autoPlay 
-            playsInline 
-            style={{ display: callType === 'video' ? 'block' : 'none' }}
-          />
-          
+          <video ref={remoteVideoRef} className="call-remote-video" autoPlay playsInline />
           {callType === 'audio' && (
             <div className="call-audio-bg">
               <div className="call-avatar call-avatar--lg" style={{ backgroundImage: remoteUser?.avatar ? `url(${remoteUser.avatar})` : undefined, borderColor: accent }}>
@@ -682,7 +518,7 @@ export default function CallManager({ currentUser }) {
             <div className="call-hud-info">
               <span className="call-hud-name" style={{ color: accent }}>{remoteName}</span>
               <span className="call-hud-timer">{fmt(callDuration)}</span>
-              {connectionState && !['connected', 'completed'].includes(connectionState) && (
+              {connectionState && connectionState !== 'connected' && (
                 <span className="call-conn-state">{
                   connectionState === 'connecting' ? '🔄 Подключение...' :
                   connectionState === 'checking' ? '🔄 Проверка...' :
@@ -692,18 +528,18 @@ export default function CallManager({ currentUser }) {
               )}
             </div>
             <div className="call-controls">
-              <button className={`call-ctrl ${!micOn ? 'call-ctrl--off' : ''}`} onClick={toggleMic}>
+              <button className={`call-ctrl ${!micOn ? 'call-ctrl--off' : ''}`} onClick={toggleMic} title={micOn ? 'Выкл. микрофон' : 'Вкл. микрофон'}>
                 {micOn ? <Mic size={18} /> : <MicOff size={18} />}
               </button>
               {callType === 'video' && (
-                <button className={`call-ctrl ${!camOn ? 'call-ctrl--off' : ''}`} onClick={toggleCam}>
+                <button className={`call-ctrl ${!camOn ? 'call-ctrl--off' : ''}`} onClick={toggleCam} title={camOn ? 'Выкл. камеру' : 'Вкл. камеру'}>
                   {camOn ? <Video size={18} /> : <VideoOff size={18} />}
                 </button>
               )}
-              <button className={`call-ctrl ${screenOn ? 'call-ctrl--active' : ''}`} onClick={toggleScreen}>
+              <button className={`call-ctrl ${screenOn ? 'call-ctrl--active' : ''}`} onClick={toggleScreen} title={screenOn ? 'Стоп демонстрация' : 'Демонстрация экрана'}>
                 {screenOn ? <MonitorOff size={18} /> : <Monitor size={18} />}
               </button>
-              <button className="call-ctrl call-ctrl--end" onClick={endCall}>
+              <button className="call-ctrl call-ctrl--end" onClick={endCall} title="Завершить">
                 <PhoneOff size={18} />
               </button>
             </div>
