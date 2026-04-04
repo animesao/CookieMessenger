@@ -4,15 +4,21 @@ const db = require('../db');
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 /**
- * Standard auth middleware — verifies JWT and checks if user is banned.
- * NOTE: No issuer check — supports both old and new tokens.
+ * Standard auth middleware — verifies JWT from Authorization header OR HttpOnly cookie
+ * and checks if user is banned.
  */
 function auth(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  // Try Authorization header first (backward compatibility)
+  let token = req.headers.authorization?.split(' ')[1];
+  
+  // If no header token, try cookie
+  if (!token && req.cookies?.auth_token) {
+    token = req.cookies.auth_token;
+  }
+  
   if (!token) return res.status(401).json({ error: 'Нет токена' });
 
   try {
-    // No issuer option — accepts tokens issued before security update
     req.user = jwt.verify(token, JWT_SECRET);
   } catch (err) {
     if (err.name === 'TokenExpiredError')

@@ -13,6 +13,7 @@ if (fs.existsSync(envPath)) {
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
 const settingsRoutes = require('./routes/settings');
@@ -33,8 +34,14 @@ const PORT = process.env.PORT || 3001;
 // ── Security headers on every response ───────────────────────────────────────
 app.use(securityHeaders);
 
-// ── CORS — allow all origins ─────────────────────────────────────────────────
-app.use(cors());
+// ── CORS — allow credentials for cookies ─────────────────────────────────────
+app.use(cors({
+  origin: process.env.FRONTEND_URL || true, // Allow all in dev, specific in prod
+  credentials: true, // Allow cookies
+}));
+
+// ── Cookie parser ─────────────────────────────────────────────────────────────
+app.use(cookieParser());
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '100mb' }));

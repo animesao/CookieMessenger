@@ -47,6 +47,22 @@ function makeToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+// Set secure HttpOnly cookie with token
+function setAuthCookie(res, token) {
+  res.cookie('auth_token', token, {
+    httpOnly: true,  // Cannot be accessed by JavaScript
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: 'strict', // CSRF protection
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  });
+}
+
+// Generate CSRF token
+function generateCSRFToken() {
+  return require('crypto').randomBytes(32).toString('hex');
+}
+
 function userPayload(user) {
   return {
     id: user.id, username: user.username, email: user.email,
@@ -168,7 +184,18 @@ router.post('/login', authLimiter, async (req, res) => {
   if (!user || !valid) return res.status(401).json({ error: 'Неверный email или пароль' });
   if (user.is_banned) return res.status(403).json({ error: `Аккаунт заблокирован. Причина: ${user.ban_reason || 'Нарушение правил'}` });
 
-  res.json({ token: makeToken(user), user: userPayload(user) });
+  const token = makeToken(user);
+  const csrfToken = generateCSRFToken();
+  
+  // Set HttpOnly cookie
+  setAuthCookie(res, token);
+  
+  // Also return token for backward compatibility (will remove later)
+  res.json({ 
+    token, // Keep for now
+    csrfToken, // Client must include this in requests
+    user: userPayload(user) 
+  });
 });
 
 // ── GET /api/auth/discord — redirect to Discord OAuth ────────────────────────
@@ -247,6 +274,17 @@ router.post('/discord/session', authLimiter, (req, res) => {
     email: data.email,
     avatar: data.avatar,
   });
+});
+
+// ── POST /api/auth/logout — clear auth cookie ─────────────────────────────────
+router.post('/logout', (req, res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+  });
+  res.json({ message: 'Logged out' });
 });
 
 module.exports = router;
