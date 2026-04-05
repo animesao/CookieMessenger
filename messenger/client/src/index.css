@@ -1391,7 +1391,7 @@ body::after {
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 14px;
   padding: 1.1rem 1.25rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.75rem !important;
 }
 
 .post-header {
