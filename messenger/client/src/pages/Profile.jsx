@@ -221,8 +221,12 @@ export default function Profile({ user, onUpdate, onLogout }) {
     fetch('/api/roles/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
+        if (!d || d.error) return; // ignore errors
         setHasVIP(d.permissions?.includes('animated_name') || d.permissions?.includes('profile_music'));
-        setIsAdmin(d.permissions?.includes('manage_roles') || d.permissions?.includes('owner') || d.roles?.includes('admin') || d.roles?.includes('owner'));
+        // Show admin panel only for admin/owner roles
+        const adminRoles = ['admin', 'owner'];
+        const hasAdminRole = Array.isArray(d.roles) && d.roles.some(r => adminRoles.includes(r));
+        setIsAdmin(hasAdminRole);
       })
       .catch(() => {});
   }, []);
