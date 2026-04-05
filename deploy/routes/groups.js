@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
-const { validateLengths } = require('../middleware/security');
+const { validateLengths, messageLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -228,7 +228,7 @@ router.get('/:id/messages', auth, (req, res) => {
 });
 
 // ── POST /api/groups/:id/messages ─────────────────────────────────────────────
-router.post('/:id/messages', auth, validateLengths({ content: 2000 }), (req, res) => {
+router.post('/:id/messages', auth, messageLimiter, validateLengths({ content: 2000 }), (req, res) => {
   const group = db.prepare('SELECT * FROM groups WHERE id=?').get(req.params.id);
   if (!group) return res.status(404).json({ error: 'Группа не найдена' });
   if (!isMember(group.id, req.user.id)) return res.status(403).json({ error: 'Вы не в группе' });

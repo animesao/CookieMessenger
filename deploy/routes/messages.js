@@ -2,18 +2,30 @@ const express = require('express');
 const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
-const { validateLengths } = require('../middleware/security');
+const { validateLengths, messageLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
-// Per-user cooldown: 1 message per 500ms (more reasonable for chat)
+// Per-user cooldown: 1 message per 500ms
 const msgCooldown = new Map();
+// Duplicate message guard: same content to same user within 2s
+const lastMsgStore = new Map();
+
 function checkMsgCooldown(userId) {
   const now = Date.now();
   const last = msgCooldown.get(userId) || 0;
   if (now - last < 500) return false;
   msgCooldown.set(userId, now);
   return true;
+}
+
+function isDuplicateMsg(senderId, receiverId, content) {
+  const key = `${senderId}:${receiverId}`;
+  const last = lastMsgStore.get(key);
+  const now = Date.now();
+  if (last && last.content === content && now - last.time < 2000) return true;
+  lastMsgStore.set(key, { content, time: now });
+  return false;
 }
 
 function areFriends(a, b) {
@@ -38,7 +50,7 @@ function canMessage(senderId, receiverId) {
 router.get('/conversations', auth, (req, res) => {
   const convos = db.prepare(`
     SELECT
-      u.id, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name,
+      u.id, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name, u.verified,
       m.content as last_message,
       m.media_type as last_media_type,
       m.created_at as last_at,
@@ -101,7 +113,7 @@ router.get('/:userId', auth, (req, res) => {
 });
 
 // POST /api/messages/:userId — send message
-router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => {
+router.post('/:userId', auth, messageLimiter, validateLengths({ content: 2000 }), (req, res) => {
   const receiverId = parseInt(req.params.userId);
   if (isNaN(receiverId)) return res.status(400).json({ error: 'Неверный ID' });
   if (receiverId === req.user.id) return res.status(400).json({ error: 'Нельзя писать себе' });
@@ -114,6 +126,10 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
 
   const { content, media, media_type, reply_to_id } = req.body;
   if (!content?.trim() && !media) return res.status(400).json({ error: 'Пустое сообщение' });
+
+  // Block duplicate messages
+  if (content?.trim() && isDuplicateMsg(req.user.id, receiverId, content.trim()))
+    return res.status(429).json({ error: 'Дублирующееся сообщение' });
 
   // Validate reply_to_id belongs to this conversation
   let replyId = null;

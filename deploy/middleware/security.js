@@ -39,6 +39,20 @@ const authLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 30 });
 // ── General API limiter: 500 req/min per IP ───────────────────────────────────
 const apiLimiter = createRateLimiter({ windowMs: 60_000, max: 500 });
 
+// ── Post/comment spam limiter: max 10 per minute per user ────────────────────
+const postLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  keyFn: (req) => `post_${req.user?.id || req.ip}`,
+});
+
+// ── Message spam limiter: max 30 per minute per user ─────────────────────────
+const messageLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  keyFn: (req) => `msg_${req.user?.id || req.ip}`,
+});
+
 // ── Security headers ──────────────────────────────────────────────────────────
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -140,6 +154,8 @@ function validateLengths(rules) {
 module.exports = {
   authLimiter,
   apiLimiter,
+  postLimiter,
+  messageLimiter,
   securityHeaders,
   sanitizeBody,
   validateRegistration,

@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
-const { validateLengths } = require('../middleware/security');
+const { validateLengths, postLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
@@ -79,7 +79,7 @@ router.get('/', auth, (req, res) => {
   res.json({ posts: posts.map(p => enrichPost(p, req.user.id)), hasMore: offset + limit < total });
 });
 
-router.post('/', auth, validateLengths({ content: 2000 }), (req, res) => {
+router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, res) => {
   const { type, content, media, poll_options } = req.body;
   if (!type || !['text', 'image', 'video', 'poll'].includes(type))
     return res.status(400).json({ error: 'Неверный тип поста' });
@@ -277,7 +277,7 @@ router.get('/:id/comments', auth, (req, res) => {
   res.json(comments);
 });
 
-router.post('/:id/comments', auth, validateLengths({ content: 1000 }), (req, res) => {
+router.post('/:id/comments', auth, postLimiter, validateLengths({ content: 1000 }), (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Пустой комментарий' });
 
