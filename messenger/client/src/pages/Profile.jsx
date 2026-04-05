@@ -207,6 +207,24 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const [vipMsg, setVipMsg] = useState(null);
   const [showVipPanel, setShowVipPanel] = useState(false);
 
+  // Gradient builder state
+  const [gradColors, setGradColors] = useState(() => {
+    // Parse existing gradient or defaults
+    if (user.animated_name) {
+      const matches = user.animated_name.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/g);
+      if (matches && matches.length >= 2) return matches.slice(0, 3);
+    }
+    return ['#ff0080', '#7928ca', '#ff0080'];
+  });
+  const [gradAngle, setGradAngle] = useState(() => {
+    if (user.animated_name) {
+      const m = user.animated_name.match(/(\d+)deg/);
+      if (m) return parseInt(m[1]);
+    }
+    return 90;
+  });
+  const [gradEnabled, setGradEnabled] = useState(!!user.animated_name);
+
   // Cropper state
   const [cropSrc, setCropSrc] = useState(null);
   const [cropType, setCropType] = useState(null); // 'avatar' | 'banner'
@@ -221,6 +239,16 @@ export default function Profile({ user, onUpdate, onLogout }) {
       .then(d => setHasVIP(d.permissions?.includes('animated_name') || d.permissions?.includes('profile_music')))
       .catch(() => {});
   }, []);
+
+  // Sync gradient builder → vipForm
+  useEffect(() => {
+    if (!gradEnabled) {
+      setVipForm(f => ({ ...f, animated_name: '' }));
+      return;
+    }
+    const grad = `linear-gradient(${gradAngle}deg, ${gradColors.join(', ')})`;
+    setVipForm(f => ({ ...f, animated_name: grad }));
+  }, [gradColors, gradAngle, gradEnabled]);
 
   const handleAvatar = async e => {
     const file = e.target.files[0];
@@ -325,7 +353,8 @@ export default function Profile({ user, onUpdate, onLogout }) {
       if (res.ok) {
         setVipMsg({ ok: true, text: 'VIP настройки сохранены' });
         setShowVipPanel(false);
-        onUpdate({ ...user, animated_name: data.animated_name, profile_music: data.profile_music });
+        // Don't pass profile_music back (too large), just update animated_name
+        onUpdate({ ...user, animated_name: data.animated_name, profile_music: data.music_saved ? vipForm.profile_music : user.profile_music });
       } else {
         setVipMsg({ ok: false, text: data.error || 'Ошибка' });
       }
@@ -599,12 +628,8 @@ export default function Profile({ user, onUpdate, onLogout }) {
               {!editing && hasVIP && (
                 <div className="profile-card pcard-full">
                   <div className="pcard-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span className="section-label"><Sparkles size={13} /> VIP Оформление</span>
-                    <button
-                      className="btn-edit-profile"
-                      onClick={() => setShowVipPanel(v => !v)}
-                      style={{ color: '#ffd43b', borderColor: '#ffd43b44' }}
-                    >
+                    <span className="section-label"><Sparkles size={13} style={{ color: '#ffd43b' }} /> VIP Оформление</span>
+                    <button className="btn-edit-profile" onClick={() => setShowVipPanel(v => !v)} style={{ color: '#ffd43b', borderColor: '#ffd43b44' }}>
                       <Pencil size={13} /> {showVipPanel ? 'Скрыть' : 'Изменить'}
                     </button>
                   </div>
@@ -619,89 +644,109 @@ export default function Profile({ user, onUpdate, onLogout }) {
                   )}
 
                   {!showVipPanel && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#555' }}>
+                    <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.85rem', color: '#555' }}>
                         Ник: {user.animated_name
-                          ? <span style={{ background: user.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 600 }}>Градиент активен</span>
+                          ? <span style={{ background: user.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 600 }}>Градиент активен ✓</span>
                           : <span style={{ color: '#333' }}>Не задан</span>}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#555' }}>
-                        Музыка: {user.profile_music ? <span style={{ color: '#69db7c' }}>Загружена</span> : <span style={{ color: '#333' }}>Не загружена</span>}
-                      </div>
+                      </span>
+                      <span style={{ fontSize: '0.85rem', color: '#555' }}>
+                        Музыка: {user.profile_music ? <span style={{ color: '#69db7c' }}>Загружена ✓</span> : <span style={{ color: '#333' }}>Не загружена</span>}
+                      </span>
                     </div>
                   )}
 
                   {showVipPanel && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {/* Animated name */}
-                      <div className="setup-field" style={{ marginBottom: 0 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', marginBottom: '0.5rem' }}>
-                          <Sparkles size={12} /> Градиент для ника
-                        </label>
-                        <input
-                          type="text"
-                          value={vipForm.animated_name}
-                          onChange={e => setVipForm(f => ({ ...f, animated_name: e.target.value }))}
-                          placeholder="linear-gradient(90deg, #ff0080, #7928ca, #ff0080)"
-                          maxLength={300}
-                          style={{ width: '100%', padding: '0.65rem 0.9rem', background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none' }}
-                        />
-                        {vipForm.animated_name && vipForm.animated_name.match(/^(linear|radial)-gradient\(/) && (
-                          <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.8rem', borderRadius: 6, background: '#111', border: '1px solid #222', fontSize: '0.85rem' }}>
-                            Предпросмотр: <span style={{ background: vipForm.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 700 }}>
-                              {user.display_name || user.username}
-                            </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+                      {/* ── Gradient builder ── */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Sparkles size={12} /> Градиент ника
+                          </span>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: gradEnabled ? '#ffd43b' : '#444' }}>
+                            <span>{gradEnabled ? 'Включён' : 'Выключен'}</span>
+                            <button type="button" onClick={() => setGradEnabled(v => !v)}
+                              style={{ width: 36, height: 20, borderRadius: 10, background: gradEnabled ? '#ffd43b' : '#222', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                              <span style={{ position: 'absolute', top: 2, left: gradEnabled ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: gradEnabled ? '#000' : '#555', transition: 'left 0.2s' }} />
+                            </button>
+                          </label>
+                        </div>
+
+                        {gradEnabled && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                              {gradColors.map((c, i) => (
+                                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+                                  <input type="color" value={c}
+                                    onChange={e => setGradColors(prev => prev.map((col, idx) => idx === i ? e.target.value : col))}
+                                    style={{ width: 44, height: 44, border: '2px solid #333', borderRadius: 10, cursor: 'pointer', padding: 2, background: '#0a0a0a' }} />
+                                  <span style={{ fontSize: '0.65rem', color: '#444', fontFamily: 'monospace' }}>{c}</span>
+                                </div>
+                              ))}
+                              {gradColors.length < 4 && (
+                                <button type="button" onClick={() => setGradColors(prev => [...prev, '#ffffff'])}
+                                  style={{ width: 44, height: 44, border: '2px dashed #333', borderRadius: 10, background: 'transparent', color: '#555', cursor: 'pointer', fontSize: '1.4rem', marginBottom: 18 }}>+</button>
+                              )}
+                              {gradColors.length > 2 && (
+                                <button type="button" onClick={() => setGradColors(prev => prev.slice(0, -1))}
+                                  style={{ width: 44, height: 44, border: '2px dashed #ff6b6b44', borderRadius: 10, background: 'transparent', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.4rem', marginBottom: 18 }}>−</button>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#555', whiteSpace: 'nowrap' }}>Угол: {gradAngle}°</span>
+                              <input type="range" min={0} max={360} value={gradAngle}
+                                onChange={e => setGradAngle(parseInt(e.target.value))}
+                                className="zoom-slider" style={{ flex: 1 }} />
+                            </div>
+
+                            <div style={{ padding: '0.6rem 1rem', borderRadius: 8, background: '#0d0d0d', border: '1px solid #1e1e1e' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#444' }}>Предпросмотр: </span>
+                              <span style={{ background: vipForm.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 700, fontSize: '1rem' }}>
+                                {user.display_name || user.username}
+                              </span>
+                            </div>
                           </div>
                         )}
-                        <span style={{ fontSize: '0.72rem', color: '#444', marginTop: '0.25rem', display: 'block' }}>
-                          Оставьте пустым чтобы убрать градиент
-                        </span>
                       </div>
 
-                      {/* Music upload */}
-                      <div className="setup-field" style={{ marginBottom: 0 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', marginBottom: '0.5rem' }}>
+                      {/* ── Music upload ── */}
+                      <div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
                           <Music size={12} /> Музыка на профиле (MP3, макс. 15MB)
-                        </label>
-                        <input ref={musicRef} type="file" accept="audio/*" hidden onChange={handleMusicUpload} />
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => musicRef.current.click()}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: 'transparent', border: '1px solid #333', borderRadius: 8, color: '#888', fontSize: '0.85rem', cursor: 'pointer' }}
-                          >
-                            <Upload size={14} /> Загрузить файл
+                        </span>
+                        <input ref={musicRef} type="file" accept="audio/mp3,audio/mpeg,audio/ogg,audio/wav,audio/*" hidden onChange={handleMusicUpload} />
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button type="button" onClick={() => musicRef.current.click()}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: 'transparent', border: '1px solid #333', borderRadius: 8, color: '#888', fontSize: '0.85rem', cursor: 'pointer' }}>
+                            <Upload size={14} /> {vipForm.profile_music ? 'Заменить файл' : 'Загрузить MP3'}
                           </button>
-                          {vipForm.profile_music && (
-                            <button
-                              type="button"
-                              onClick={() => setVipForm(f => ({ ...f, profile_music: null }))}
-                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.8rem', background: 'transparent', border: '1px solid #ff6b6b44', borderRadius: 8, color: '#ff6b6b', fontSize: '0.85rem', cursor: 'pointer' }}
-                            >
+                          {(vipForm.profile_music || user.profile_music) && (
+                            <button type="button" onClick={() => setVipForm(f => ({ ...f, profile_music: '' }))}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 0.8rem', background: 'transparent', border: '1px solid #ff6b6b44', borderRadius: 8, color: '#ff6b6b', fontSize: '0.85rem', cursor: 'pointer' }}>
                               <X size={13} /> Убрать
                             </button>
                           )}
                         </div>
-                        {vipForm.profile_music && (
-                          <audio controls src={vipForm.profile_music} style={{ marginTop: '0.5rem', width: '100%', maxWidth: 300, height: 32 }} />
+                        {vipForm.profile_music && vipForm.profile_music.startsWith('data:') && (
+                          <audio controls src={vipForm.profile_music} style={{ marginTop: '0.6rem', width: '100%', maxWidth: 320 }} />
+                        )}
+                        {!vipForm.profile_music && user.profile_music && (
+                          <span style={{ fontSize: '0.8rem', color: '#69db7c', marginTop: '0.4rem', display: 'block' }}>✓ Музыка уже загружена</span>
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          onClick={() => { setShowVipPanel(false); setVipForm({ animated_name: user.animated_name || '', profile_music: user.profile_music || null }); }}
-                          style={{ padding: '0.55rem 1.1rem', background: 'transparent', border: '1px solid #222', borderRadius: 8, color: '#555', fontSize: '0.85rem', cursor: 'pointer' }}
-                        >
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid #1a1a1a' }}>
+                        <button type="button"
+                          onClick={() => { setShowVipPanel(false); setGradEnabled(!!user.animated_name); setVipForm({ animated_name: user.animated_name || '', profile_music: user.profile_music || null }); }}
+                          style={{ padding: '0.55rem 1.1rem', background: 'transparent', border: '1px solid #222', borderRadius: 8, color: '#555', fontSize: '0.85rem', cursor: 'pointer' }}>
                           Отмена
                         </button>
-                        <button
-                          type="button"
-                          onClick={handleVipSave}
-                          disabled={vipSaving}
-                          style={{ padding: '0.55rem 1.3rem', background: '#ffd43b', border: 'none', borderRadius: 8, color: '#000', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', opacity: vipSaving ? 0.6 : 1 }}
-                        >
-                          {vipSaving ? '...' : 'Сохранить'}
+                        <button type="button" onClick={handleVipSave} disabled={vipSaving}
+                          style={{ padding: '0.55rem 1.3rem', background: '#ffd43b', border: 'none', borderRadius: 8, color: '#000', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', opacity: vipSaving ? 0.6 : 1 }}>
+                          {vipSaving ? 'Сохранение...' : 'Сохранить'}
                         </button>
                       </div>
                     </div>

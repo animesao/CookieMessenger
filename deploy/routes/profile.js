@@ -83,8 +83,8 @@ router.put('/vip', auth, (req, res) => {
     db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   }
 
-  const updated = db.prepare('SELECT animated_name, profile_music FROM users WHERE id = ?').get(req.user.id);
-  res.json(updated);
+  const updated = db.prepare('SELECT animated_name FROM users WHERE id = ?').get(req.user.id);
+  res.json({ ok: true, animated_name: updated.animated_name, music_saved: newMusic !== undefined });
 });
 
 module.exports = router;
