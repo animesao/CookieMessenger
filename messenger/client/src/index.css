@@ -1387,10 +1387,11 @@ body::after {
 
 /* ── Post Card ── */
 .post-card {
-  background: #111;
-  border: 1px solid #1a1a1a;
+  background: rgba(17, 17, 17, 0.88) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 14px;
   padding: 1.1rem 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .post-header {
