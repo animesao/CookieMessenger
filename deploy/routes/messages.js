@@ -6,6 +6,16 @@ const { validateLengths } = require('../middleware/security');
 
 const router = express.Router();
 
+// Per-user cooldown: 1 message per 500ms (more reasonable for chat)
+const msgCooldown = new Map();
+function checkMsgCooldown(userId) {
+  const now = Date.now();
+  const last = msgCooldown.get(userId) || 0;
+  if (now - last < 500) return false;
+  msgCooldown.set(userId, now);
+  return true;
+}
+
 function areFriends(a, b) {
   return !!db.prepare(`
     SELECT 1 FROM friendships
@@ -14,11 +24,21 @@ function areFriends(a, b) {
   `).get(a, b, b, a);
 }
 
-// GET /api/messages/conversations — list of conversations
+function canMessage(senderId, receiverId) {
+  const receiver = db.prepare('SELECT privacy_who_can_message FROM users WHERE id = ?').get(receiverId);
+  if (!receiver) return { ok: false, error: 'Пользователь не найден', status: 404 };
+  const setting = receiver.privacy_who_can_message || 'everyone'; // Changed default to 'everyone'
+  if (setting === 'nobody') return { ok: false, error: 'Этот пользователь не принимает сообщения', status: 403 };
+  if (setting === 'friends' && !areFriends(senderId, receiverId))
+    return { ok: false, error: 'Этот пользователь принимает сообщения только от друзей', status: 403 };
+  return { ok: true };
+}
+
+// GET /api/messages/conversations
 router.get('/conversations', auth, (req, res) => {
   const convos = db.prepare(`
     SELECT
-      u.id, u.username, u.display_name, u.avatar, u.accent_color,
+      u.id, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name,
       m.content as last_message,
       m.media_type as last_media_type,
       m.created_at as last_at,
@@ -46,24 +66,28 @@ router.get('/unread-count', auth, (req, res) => {
   res.json({ count });
 });
 
-// GET /api/messages/:userId — conversation with user
+// GET /api/messages/:userId — load conversation
 router.get('/:userId', auth, (req, res) => {
   const otherId = parseInt(req.params.userId);
-  if (!areFriends(req.user.id, otherId))
-    return res.status(403).json({ error: 'Вы не друзья' });
+  if (isNaN(otherId)) return res.status(400).json({ error: 'Неверный ID' });
 
-  // Mark as read
-  db.prepare(
-    'UPDATE messages SET read = 1 WHERE sender_id = ? AND receiver_id = ?'
-  ).run(otherId, req.user.id);
+  // Allow reading if they have existing messages OR are friends OR privacy allows
+  const check = canMessage(req.user.id, otherId);
+  const hasHistory = !!db.prepare(
+    'SELECT 1 FROM messages WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) LIMIT 1'
+  ).get(req.user.id, otherId, otherId, req.user.id);
+
+  if (!check.ok && !hasHistory)
+    return res.status(check.status).json({ error: check.error });
+
+  db.prepare('UPDATE messages SET read = 1 WHERE sender_id = ? AND receiver_id = ?').run(otherId, req.user.id);
 
   const msgs = db.prepare(`
-    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM messages m JOIN users u ON u.id = m.sender_id
     WHERE (m.sender_id = ? AND m.receiver_id = ?)
        OR (m.sender_id = ? AND m.receiver_id = ?)
-    ORDER BY m.created_at ASC
-    LIMIT 100
+    ORDER BY m.created_at ASC LIMIT 100
   `).all(req.user.id, otherId, otherId, req.user.id);
 
   res.json(msgs);
@@ -75,17 +99,9 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
   if (isNaN(receiverId)) return res.status(400).json({ error: 'Неверный ID' });
   if (receiverId === req.user.id) return res.status(400).json({ error: 'Нельзя писать себе' });
 
-  // Check receiver privacy
-  const receiver = db.prepare('SELECT privacy_who_can_message FROM users WHERE id = ?').get(receiverId);
-  if (!receiver) return res.status(404).json({ error: 'Пользователь не найден' });
+  const check = canMessage(req.user.id, receiverId);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
 
-  const canMsg = receiver.privacy_who_can_message || 'friends';
-  if (canMsg === 'nobody')
-    return res.status(403).json({ error: 'Этот пользователь не принимает сообщения' });
-  if (canMsg === 'friends' && !areFriends(req.user.id, receiverId))
-    return res.status(403).json({ error: 'Этот пользователь принимает сообщения только от друзей' });
-
-  // Cooldown 1 sec
   if (!checkMsgCooldown(req.user.id))
     return res.status(429).json({ error: 'Слишком быстро. Подождите секунду.' });
 
@@ -97,13 +113,16 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
   ).run(req.user.id, receiverId, content?.trim() || null, media || null, media_type || null);
 
   const msg = db.prepare(`
-    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color
-    FROM messages m JOIN users u ON u.id = m.sender_id
-    WHERE m.id = ?
+    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
+    FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
   `).get(result.lastInsertRowid);
 
-  ws.sendTo(receiverId, 'new_message', msg);
-  ws.sendTo(req.user.id, 'new_message', msg);
+  console.log(`[MSG] Sending message from ${req.user.id} to ${receiverId}, msg ID: ${msg.id}`);
+  
+  const sentToReceiver = ws.sendTo(receiverId, 'new_message', msg);
+  const sentToSender = ws.sendTo(req.user.id, 'new_message', msg);
+  
+  console.log(`[MSG] Delivered to receiver: ${sentToReceiver}, to sender: ${sentToSender}`);
 
   res.json(msg);
 });

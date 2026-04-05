@@ -62,7 +62,13 @@ function ConversationList({ convos, activeId, onSelect, currentUserId, unreadMap
         <Avatar user={c} size={40} />
         <div className="msg-convo-info">
           <div className="msg-convo-top">
-            <span className="msg-convo-name" style={{ color: accent }}>{name}</span>
+            <span
+              className={`msg-convo-name${c.animated_name ? ' gradient-name' : ''}`}
+              style={c.animated_name
+                ? { background: c.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
+                : { color: accent }
+              }
+            >{name}</span>
             <span className="msg-convo-time">{msgTime(c.last_at)}</span>
           </div>
           <div className="msg-convo-bottom">
@@ -362,7 +368,13 @@ export default function Messages({ user, initialChat, onClearInitial }) {
               </button>
               <Avatar user={activeUser} size={34} />
               <div className="msg-chat-header-info">
-                <span className="msg-chat-name" style={{ color: activeUser.accent_color || '#fff' }}>
+                <span
+                  className={`msg-chat-name${activeUser.animated_name ? ' gradient-name' : ''}`}
+                  style={activeUser.animated_name
+                    ? { background: activeUser.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
+                    : { color: activeUser.accent_color || '#fff' }
+                  }
+                >
                   {activeUser.display_name || activeUser.username}
                 </span>
                 <span className="msg-chat-username">@{activeUser.username}</span>

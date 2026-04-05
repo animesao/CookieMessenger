@@ -39,7 +39,7 @@ router.get('/:username/posts', auth, (req, res) => {
   const offset = (page - 1) * limit;
 
   const posts = db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM posts p JOIN users u ON u.id = p.user_id
     WHERE p.user_id = ?
     ORDER BY p.created_at DESC LIMIT ? OFFSET ?

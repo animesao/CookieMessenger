@@ -27,6 +27,7 @@ function notify(userId, actorId, type, postId = null, commentId = null) {
     SELECT n.*,
       u.username as actor_username, u.display_name as actor_display_name,
       u.avatar as actor_avatar, u.accent_color as actor_accent_color,
+      u.animated_name as actor_animated_name,
       p.content as post_content, p.type as post_type
     FROM notifications n
     JOIN users u ON u.id = n.actor_id
@@ -41,6 +42,7 @@ function enrichPost(post, userId) {
   const likes = db.prepare('SELECT COUNT(*) as c FROM likes WHERE post_id = ?').get(post.id).c;
   const liked = !!db.prepare('SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?').get(post.id, userId);
   const commentsCount = db.prepare('SELECT COUNT(*) as c FROM comments WHERE post_id = ?').get(post.id).c;
+  const views = db.prepare('SELECT COUNT(*) as c FROM post_views WHERE post_id = ?').get(post.id).c;
 
   let poll = null;
   if (post.type === 'poll') {
@@ -57,7 +59,7 @@ function enrichPost(post, userId) {
     }));
   }
 
-  return { ...post, likes, liked, commentsCount, poll };
+  return { ...post, likes, liked, commentsCount, views, poll };
 }
 
 // ─── Feed ────────────────────────────────────────────────────────────────────
@@ -68,7 +70,7 @@ router.get('/', auth, (req, res) => {
   const offset = (page - 1) * limit;
 
   const posts = db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM posts p JOIN users u ON u.id = p.user_id
     ORDER BY p.created_at DESC LIMIT ? OFFSET ?
   `).all(limit, offset);
@@ -103,7 +105,7 @@ router.post('/', auth, validateLengths({ content: 2000 }), (req, res) => {
   parseMentions(content).forEach(uid => notify(uid, req.user.id, 'mention', postId));
 
   const post = db.prepare(`
-    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ?
   `).get(postId);
 
@@ -122,6 +124,7 @@ router.get('/notifications', auth, (req, res) => {
     SELECT n.*,
       u.username as actor_username, u.display_name as actor_display_name,
       u.avatar as actor_avatar, u.accent_color as actor_accent_color,
+      u.animated_name as actor_animated_name,
       p.content as post_content, p.type as post_type
     FROM notifications n
     JOIN users u ON u.id = n.actor_id
@@ -162,8 +165,15 @@ router.get('/mention-search', auth, (req, res) => {
 });
 
 router.post('/poll/:optionId/vote', auth, (req, res) => {
-  const option = db.prepare('SELECT * FROM poll_options WHERE id = ?').get(req.params.optionId);
+  const optionId = parseInt(req.params.optionId);
+  if (isNaN(optionId)) return res.status(400).json({ error: 'Неверный ID опции' });
+
+  const option = db.prepare('SELECT * FROM poll_options WHERE id = ?').get(optionId);
   if (!option) return res.status(404).json({ error: 'Вариант не найден' });
+
+  // Check post still exists
+  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(option.post_id);
+  if (!post) return res.status(404).json({ error: 'Пост удалён' });
 
   const existing = db.prepare(`
     SELECT pv.* FROM poll_votes pv
@@ -172,14 +182,14 @@ router.post('/poll/:optionId/vote', auth, (req, res) => {
   `).get(option.post_id, req.user.id);
 
   if (existing) {
-    if (existing.option_id === parseInt(req.params.optionId)) {
-      db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(req.params.optionId, req.user.id);
+    if (existing.option_id === optionId) {
+      db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(optionId, req.user.id);
     } else {
       db.prepare('DELETE FROM poll_votes WHERE option_id = ? AND user_id = ?').run(existing.option_id, req.user.id);
-      db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(req.params.optionId, req.user.id);
+      db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
     }
   } else {
-    db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(req.params.optionId, req.user.id);
+    db.prepare('INSERT INTO poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
   }
 
   const options = db.prepare('SELECT * FROM poll_options WHERE post_id = ?').all(option.post_id);
@@ -231,9 +241,30 @@ router.post('/:id/like', auth, (req, res) => {
   res.json({ liked: !liked, count });
 });
 
+// Register post view (unique per user)
+router.post('/:id/view', auth, (req, res) => {
+  const postId = parseInt(req.params.id);
+  if (isNaN(postId)) return res.status(400).json({ error: 'Неверный ID' });
+  
+  // Check if post exists
+  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ error: 'Пост не найден' });
+  
+  // Insert or ignore if already viewed (UNIQUE constraint)
+  try {
+    db.prepare('INSERT INTO post_views (post_id, user_id) VALUES (?, ?)').run(postId, req.user.id);
+  } catch (err) {
+    // Already viewed - ignore
+  }
+  
+  // Return current view count
+  const views = db.prepare('SELECT COUNT(*) as c FROM post_views WHERE post_id = ?').get(postId).c;
+  res.json({ views });
+});
+
 router.get('/:id/comments', auth, (req, res) => {
   const comments = db.prepare(`
-    SELECT c.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT c.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM comments c JOIN users u ON u.id = c.user_id
     WHERE c.post_id = ? ORDER BY c.created_at ASC
   `).all(req.params.id);
@@ -257,7 +288,7 @@ router.post('/:id/comments', auth, validateLengths({ content: 1000 }), (req, res
   parseMentions(content).forEach(uid => notify(uid, req.user.id, 'mention', post.id, commentId));
 
   const comment = db.prepare(`
-    SELECT c.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT c.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?
   `).get(commentId);
 

@@ -37,7 +37,13 @@ function FriendCard({ user, friendship, onAction, onMessage }) {
     <div className="fr-card">
       <Avatar user={user} />
       <div className="fr-card-info">
-        <span className="fr-card-name" style={{ color: accent }}>{name}</span>
+        <span
+          className={`fr-card-name${user.animated_name ? ' gradient-name' : ''}`}
+          style={user.animated_name
+            ? { background: user.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
+            : { color: accent }
+          }
+        >{name}</span>
         <span className="fr-card-username">@{user.username}</span>
         {user.bio && <span className="fr-card-bio">{user.bio}</span>}
       </div>

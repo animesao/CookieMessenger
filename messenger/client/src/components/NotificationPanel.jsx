@@ -36,7 +36,13 @@ function NotifItem({ n }) {
       </div>
       <div className="notif-body">
         <p className="notif-text">
-          <span style={{ color: accent, fontWeight: 600 }}>{name}</span>
+          <span
+            className={n.actor_animated_name ? 'gradient-name' : ''}
+            style={n.actor_animated_name
+              ? { background: n.actor_animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent', fontWeight: 600, backgroundSize: '200% auto', animation: 'gradientShift 3s linear infinite' }
+              : { color: accent, fontWeight: 600 }
+            }
+          >{name}</span>
           {' '}{TYPE_TEXT[n.type] || n.type}
         </p>
         {n.post_content && (

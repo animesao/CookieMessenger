@@ -1356,6 +1356,14 @@ body {
 
 .post-meta { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; }
 .post-name { font-size: 0.9rem; font-weight: 600; transition: color 0.3s; }
+.post-name.gradient-name {
+  background-size: 200% auto;
+  animation: gradientShift 3s linear infinite;
+}
+.comment-name.gradient-name {
+  background-size: 200% auto;
+  animation: gradientShift 3s linear infinite;
+}
 .post-username { font-size: 0.75rem; color: #444; }
 
 .post-delete {
@@ -1938,6 +1946,10 @@ body {
   gap: 0.1rem;
 }
 .fr-card-name { font-size: 0.9rem; font-weight: 600; }
+.fr-card-name.gradient-name {
+  background-size: 200% auto;
+  animation: gradientShift 3s linear infinite;
+}
 .fr-card-username { font-size: 0.75rem; color: #444; }
 .fr-card-bio { font-size: 0.78rem; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -2177,6 +2189,10 @@ body {
 
 .msg-chat-header-info { display: flex; flex-direction: column; gap: 0.05rem; }
 .msg-chat-name { font-size: 0.9rem; font-weight: 600; }
+.msg-chat-name.gradient-name {
+  background-size: 200% auto;
+  animation: gradientShift 3s linear infinite;
+}
 .msg-chat-username { font-size: 0.72rem; color: #444; }
 
 .msg-messages {

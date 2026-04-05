@@ -20,7 +20,7 @@ router.get('/search', auth, (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json([]);
   const users = db.prepare(`
-    SELECT id, username, display_name, avatar, accent_color, bio
+    SELECT id, username, display_name, avatar, accent_color, animated_name, bio
     FROM users
     WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?)
     LIMIT 20
@@ -33,7 +33,7 @@ router.get('/search', auth, (req, res) => {
 // GET /api/friends — my friends list
 router.get('/', auth, (req, res) => {
   const friends = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.avatar, u.accent_color, u.bio
+    SELECT u.id, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name, u.bio
     FROM friendships f
     JOIN users u ON u.id = CASE
       WHEN f.requester_id = ? THEN f.addressee_id
@@ -65,8 +65,12 @@ router.post('/request/:userId', auth, (req, res) => {
   if (targetId === req.user.id) return res.status(400).json({ error: 'Нельзя добавить себя' });
 
   // Verify target user exists
-  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+  const target = db.prepare('SELECT id, privacy_who_can_add FROM users WHERE id = ?').get(targetId);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+
+  // Check privacy
+  if (target.privacy_who_can_add === 'nobody')
+    return res.status(403).json({ error: 'Этот пользователь не принимает заявки в друзья' });
 
   const existing = friendStatus(req.user.id, targetId);
   if (existing) return res.status(400).json({ error: 'Заявка уже существует' });

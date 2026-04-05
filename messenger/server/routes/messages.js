@@ -38,7 +38,7 @@ function canMessage(senderId, receiverId) {
 router.get('/conversations', auth, (req, res) => {
   const convos = db.prepare(`
     SELECT
-      u.id, u.username, u.display_name, u.avatar, u.accent_color,
+      u.id, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name,
       m.content as last_message,
       m.media_type as last_media_type,
       m.created_at as last_at,
@@ -83,7 +83,7 @@ router.get('/:userId', auth, (req, res) => {
   db.prepare('UPDATE messages SET read = 1 WHERE sender_id = ? AND receiver_id = ?').run(otherId, req.user.id);
 
   const msgs = db.prepare(`
-    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM messages m JOIN users u ON u.id = m.sender_id
     WHERE (m.sender_id = ? AND m.receiver_id = ?)
        OR (m.sender_id = ? AND m.receiver_id = ?)
@@ -113,7 +113,7 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
   ).run(req.user.id, receiverId, content?.trim() || null, media || null, media_type || null);
 
   const msg = db.prepare(`
-    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color
+    SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
     FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
   `).get(result.lastInsertRowid);
 
