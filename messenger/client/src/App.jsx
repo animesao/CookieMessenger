@@ -18,6 +18,21 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, []);
 
+  // Load profile_music from server on startup (not stored in localStorage)
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('/api/profile/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.profile_music !== undefined) {
+          setUser(prev => prev ? { ...prev, profile_music: data.profile_music, animated_name: data.animated_name } : prev);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Connect WS as soon as we have a user/token
   useEffect(() => {
     if (user && localStorage.getItem('token')) {
@@ -27,15 +42,25 @@ export default function App() {
   }, [user]);
 
   const handleLogin = (userData) => {
-    localStorage.setItem('user', JSON.stringify(userData));
+    // Don't store large base64 fields in localStorage
+    const forStorage = { ...userData };
+    if (forStorage.profile_music && forStorage.profile_music.startsWith('data:')) {
+      delete forStorage.profile_music;
+    }
+    localStorage.setItem('user', JSON.stringify(forStorage));
     setUser(userData);
     // Connect immediately after login
     setTimeout(wsConnect, 100);
   };
 
   const handleUpdate = (updatedUser) => {
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    // Don't store large base64 fields in localStorage (quota limit ~5MB)
+    const forStorage = { ...updatedUser };
+    if (forStorage.profile_music && forStorage.profile_music.startsWith('data:')) {
+      delete forStorage.profile_music;
+    }
+    localStorage.setItem('user', JSON.stringify(forStorage));
+    setUser(updatedUser); // keep full data in memory
   };
 
   const handleSetupComplete = (updatedUser) => {
