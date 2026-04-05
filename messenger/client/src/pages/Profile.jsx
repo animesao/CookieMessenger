@@ -43,27 +43,9 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const { username } = useParams();
   const navigate = useNavigate();
   
-  // If viewing another user's profile
-  if (username && username !== user.username) {
-    return (
-      <UserProfile
-        username={username}
-        currentUser={user}
-        onBack={() => navigate('/profile')}
-        onOpenChat={(targetUser) => {
-          navigate('/profile');
-          setTimeout(() => {
-            setTab('messages');
-            setChatTarget(targetUser);
-          }, 100);
-        }}
-      />
-    );
-  }
-  
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState('profile');
-  const [profileTab, setProfileTab] = useState('info'); // 'info' | 'posts'
+  const [profileTab, setProfileTab] = useState('info');
   const [chatTarget, setChatTarget] = useState(null);
 
   // Unread counters for sidebar badges
@@ -403,6 +385,54 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const displayAvatar = editing ? form.avatar : user.avatar;
   const displayBanner = editing ? form.banner : user.banner;
   const displayName = user.display_name || user.username;
+
+  // Viewing another user's profile — render inside full layout
+  if (username && username !== user.username) {
+    return (
+      <div className="profile-page">
+        <aside className="profile-sidebar">
+          <div className="sidebar-logo" onClick={() => navigate('/profile')} style={{ cursor: 'pointer' }}>
+            <div className="sidebar-logo-icon" style={{ borderColor: user.accent_color || '#fff' }}>
+              {user.avatar ? <img src={user.avatar} alt="avatar" /> : <User size={18} />}
+            </div>
+            <span>RLC</span>
+          </div>
+          <nav className="sidebar-nav">
+            <button className="sidebar-item active" onClick={() => navigate('/profile')} style={{ color: user.accent_color || '#fff' }}>
+              <User size={17} /> Профиль
+            </button>
+            <button className="sidebar-item" onClick={() => { navigate('/profile'); }}>
+              <Rss size={17} /> Лента
+            </button>
+            <button className="sidebar-item" onClick={() => navigate('/profile')}>
+              <Users size={17} /> Друзья
+            </button>
+            <button className="sidebar-item" onClick={() => navigate('/profile')}>
+              <MessageSquare size={17} /> Сообщения
+            </button>
+            <button className="sidebar-item" onClick={() => navigate('/profile')}>
+              <UsersRound size={17} /> Группы
+            </button>
+            <button className="sidebar-item" onClick={() => navigate('/profile')}>
+              <Shield size={17} /> Настройки
+            </button>
+          </nav>
+          <button className="sidebar-logout" onClick={onLogout}>
+            <LogOut size={15} /> Выйти
+          </button>
+        </aside>
+        <main className="profile-main">
+          <UserProfile
+            username={username}
+            currentUser={user}
+            onBack={() => navigate('/profile')}
+            onOpenChat={(targetUser) => navigate('/profile')}
+          />
+        </main>
+        <CallManager currentUser={user} />
+      </div>
+    );
+  }
 
   return (
     <div className="profile-page">

@@ -69,8 +69,11 @@ router.put('/vip', auth, (req, res) => {
     }
   }
 
-  const newAnimated = perms.includes('animated_name') ? (animated_name || null) : undefined;
-  const newMusic = perms.includes('profile_music') ? (profile_music || null) : undefined;
+  const newAnimated = perms.includes('animated_name') ? (animated_name !== undefined ? (animated_name || null) : undefined) : undefined;
+  // '' means delete, null/undefined means don't change, data:audio/... means save
+  const newMusic = perms.includes('profile_music') 
+    ? (profile_music === '' ? null : (profile_music !== undefined ? profile_music : undefined))
+    : undefined;
 
   // Build update query dynamically
   const fields = [];
