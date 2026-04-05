@@ -2,13 +2,21 @@ const express = require('express');
 const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
+const { getUserRoles } = require('./roles');
 
 const router = express.Router();
 const ADMIN_EMAIL = 'yamekel0@gmail.com';
 
 function adminOnly(req, res, next) {
   const user = db.prepare('SELECT email, is_banned FROM users WHERE id = ?').get(req.user.id);
-  if (!user || user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Нет доступа' });
+  if (!user) return res.status(403).json({ error: 'Нет доступа' });
+  
+  // Allow by email (owner) OR by role (admin/owner)
+  const isOwnerEmail = user.email === ADMIN_EMAIL;
+  const roles = getUserRoles(req.user.id);
+  const hasAdminRole = roles.includes('admin') || roles.includes('owner');
+  
+  if (!isOwnerEmail && !hasAdminRole) return res.status(403).json({ error: 'Нет доступа' });
   next();
 }
 
@@ -110,11 +118,16 @@ router.post('/users/:id/ban', auth, adminOnly, (req, res) => {
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
   if (target.email === ADMIN_EMAIL) return res.status(400).json({ error: 'Нельзя забанить администратора' });
 
+  // Only owner (by email) can ban admins/owners
+  const targetRoles = getUserRoles(target.id);
+  const myRoles = getUserRoles(req.user.id);
+  const myUser = db.prepare('SELECT email FROM users WHERE id = ?').get(req.user.id);
+  const isOwner = myUser?.email === ADMIN_EMAIL || myRoles.includes('owner');
+  if ((targetRoles.includes('admin') || targetRoles.includes('owner')) && !isOwner)
+    return res.status(403).json({ error: 'Нельзя забанить администратора' });
+
   db.prepare('UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?').run(reason, target.id);
-
-  // Kick from WS
   ws.sendTo(target.id, 'banned', { reason });
-
   res.json({ ok: true });
 });
 
@@ -129,6 +142,12 @@ router.delete('/users/:id', auth, adminOnly, (req, res) => {
   const target = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.params.id);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
   if (target.email === ADMIN_EMAIL) return res.status(400).json({ error: 'Нельзя удалить администратора' });
+
+  // Only owner can delete accounts
+  const myUser = db.prepare('SELECT email FROM users WHERE id = ?').get(req.user.id);
+  const myRoles = getUserRoles(req.user.id);
+  const isOwner = myUser?.email === ADMIN_EMAIL || myRoles.includes('owner');
+  if (!isOwner) return res.status(403).json({ error: 'Только владелец может удалять аккаунты' });
 
   ws.sendTo(target.id, 'banned', { reason: 'Аккаунт удалён администратором' });
   db.prepare('DELETE FROM users WHERE id = ?').run(target.id);
