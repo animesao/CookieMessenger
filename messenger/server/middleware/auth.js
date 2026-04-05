@@ -3,6 +3,10 @@ const db = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
+if (!process.env.JWT_SECRET) {
+  console.error('[SECURITY] WARNING: JWT_SECRET not set in environment! Using default insecure key.');
+}
+
 /**
  * Standard auth middleware — verifies JWT from Authorization header OR HttpOnly cookie
  * and checks if user is banned.

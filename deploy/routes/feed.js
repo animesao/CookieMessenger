@@ -241,23 +241,29 @@ router.post('/:id/like', auth, (req, res) => {
   res.json({ liked: !liked, count });
 });
 
-// Register post view (unique per user)
+// Register post view (unique per user) — rate limited
+const viewCooldown = new Map();
 router.post('/:id/view', auth, (req, res) => {
   const postId = parseInt(req.params.id);
   if (isNaN(postId)) return res.status(400).json({ error: 'Неверный ID' });
+
+  // Rate limit: max 1 view registration per post per 10 seconds per user
+  const key = `${req.user.id}:${postId}`;
+  const now = Date.now();
+  if (viewCooldown.has(key) && now - viewCooldown.get(key) < 10_000) {
+    return res.json({ views: 0 }); // silently ignore
+  }
+  viewCooldown.set(key, now);
   
-  // Check if post exists
   const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   
-  // Insert or ignore if already viewed (UNIQUE constraint)
   try {
     db.prepare('INSERT INTO post_views (post_id, user_id) VALUES (?, ?)').run(postId, req.user.id);
   } catch (err) {
     // Already viewed - ignore
   }
   
-  // Return current view count
   const views = db.prepare('SELECT COUNT(*) as c FROM post_views WHERE post_id = ?').get(postId).c;
   res.json({ views });
 });

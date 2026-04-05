@@ -117,12 +117,8 @@ router.post('/:userId', auth, validateLengths({ content: 2000 }), (req, res) => 
     FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?
   `).get(result.lastInsertRowid);
 
-  console.log(`[MSG] Sending message from ${req.user.id} to ${receiverId}, msg ID: ${msg.id}`);
-  
-  const sentToReceiver = ws.sendTo(receiverId, 'new_message', msg);
-  const sentToSender = ws.sendTo(req.user.id, 'new_message', msg);
-  
-  console.log(`[MSG] Delivered to receiver: ${sentToReceiver}, to sender: ${sentToSender}`);
+  ws.sendTo(receiverId, 'new_message', msg);
+  ws.sendTo(req.user.id, 'new_message', msg);
 
   res.json(msg);
 });

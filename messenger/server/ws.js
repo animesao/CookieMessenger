@@ -49,79 +49,42 @@ function setup(server) {
     }, 5000);
 
     ws.on('message', (raw) => {
-      // Reject oversized messages - increased to 256KB for large SDP with many ICE candidates
-      if (raw.length > 262144) {
-        console.log(`[WS] Message too large: ${raw.length} bytes`);
-        return;
-      }
+      if (raw.length > 262144) return;
 
       try {
         const msg = JSON.parse(raw);
         
-        // Handle authentication
         if (!isAuthenticated && msg.type === 'auth') {
           clearTimeout(authTimeout);
-          
           try {
             const payload = jwt.verify(msg.token, JWT_SECRET);
             userId = payload.id;
             isAuthenticated = true;
-            
             if (!clients.has(userId)) clients.set(userId, new Set());
-            
-            // Limit concurrent connections per user (max 5 tabs)
             if (clients.get(userId).size >= 5) {
               ws.close(4002, 'Too many connections for this user');
               return;
             }
-            
             clients.get(userId).add(ws);
             broadcast('user_online', { userId });
-            console.log('[WS] User', userId, 'authenticated');
-            
-            // Send auth success
             ws.send(JSON.stringify({ type: 'auth_ok' }));
           } catch (err) {
-            console.error('[WS] Auth failed:', err.message);
             ws.close(4001, 'Invalid token');
           }
           return;
         }
         
-        // Require authentication for all other messages
-        if (!isAuthenticated) {
-          ws.close(4001, 'Not authenticated');
-          return;
-        }
+        if (!isAuthenticated) { ws.close(4001, 'Not authenticated'); return; }
 
-        // Rate limit per user (pass event for ICE exception)
-        if (!checkWsMessageRate(userId, msg.event)) {
-          console.log(`[WS] Rate limit exceeded for user ${userId}, event: ${msg.event}`);
-          return;
-        }
+        if (!checkWsMessageRate(userId, msg.event)) return;
 
-        // Only relay whitelisted signaling events
         if (ALLOWED_SIGNALING.has(msg.event) && msg.to && Number.isInteger(msg.to)) {
-          const targetOnline = clients.has(msg.to);
-          console.log(`[WS] ${msg.event} from ${userId} to ${msg.to}, target online: ${targetOnline}`);
-          
-          // Log answer specifically
-          if (msg.event === 'call_answer') {
-            console.log(`[WS] call_answer: has SDP: ${!!msg.data?.answer?.sdp}, SDP length: ${msg.data?.answer?.sdp?.length || 0}`);
-          }
-          
-          // Log offer specifically
           if (msg.event === 'call_offer') {
-            console.log(`[WS] call_offer: has SDP: ${!!msg.data?.offer?.sdp}, SDP length: ${msg.data?.offer?.sdp?.length || 0}`);
-            
             try {
               const db = require('./db');
               const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
               const setting = target?.privacy_who_can_call || 'everyone';
-              console.log(`[WS] call_offer: target privacy=${setting}`);
               if (setting === 'nobody') {
-                console.log('[WS] blocked by privacy=nobody');
-                // Send rejection back to caller
                 sendTo(userId, 'call_reject', { from: msg.to, reason: 'privacy' });
                 return;
               }
@@ -132,8 +95,6 @@ function setup(server) {
                   AND status='accepted'
                 `).get(userId, msg.to, msg.to, userId);
                 if (!areFriends) {
-                  console.log('[WS] blocked by privacy=friends, not friends');
-                  // Send rejection back to caller
                   sendTo(userId, 'call_reject', { from: msg.to, reason: 'not_friends' });
                   return;
                 }
@@ -142,15 +103,7 @@ function setup(server) {
               console.error('[WS] Error checking call privacy:', err);
             }
           }
-          
-          if (!targetOnline) {
-            console.log(`[WS] Target ${msg.to} is OFFLINE, cannot deliver ${msg.event}`);
-          }
-          
-          const sent = sendTo(msg.to, msg.event, { ...msg.data, from: userId });
-          console.log(`[WS] ${msg.event} ${sent ? 'delivered' : 'FAILED to deliver'} to ${msg.to}`);
-        } else if (ALLOWED_SIGNALING.has(msg.event)) {
-          console.log(`[WS] Invalid signaling message: event=${msg.event}, to=${msg.to}, isInteger=${Number.isInteger(msg.to)}`);
+          sendTo(msg.to, msg.event, { ...msg.data, from: userId });
         }
       } catch (err) {
         console.error('[WS] Message handling error:', err);
@@ -179,16 +132,10 @@ function sendTo(userIds, event, data) {
     const sockets = clients.get(uid);
     if (sockets) {
       sockets.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(msg);
-          sent++;
-        }
+        if (ws.readyState === WebSocket.OPEN) { ws.send(msg); sent++; }
       });
-    } else {
-      console.log(`[WS] User ${uid} has no active connections`);
     }
   });
-  console.log(`[WS] sendTo(${ids.join(',')}, ${event}): sent to ${sent} socket(s)`);
   return sent > 0;
 }
 

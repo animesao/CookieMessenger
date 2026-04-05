@@ -16,6 +16,11 @@ router.get('/me', auth, (req, res) => {
 router.put('/update', auth, validateLengths({ display_name: 50, bio: 300, accent_color: 20 }), (req, res) => {
   const { display_name, bio, avatar, banner, accent_color } = req.body;
   
+  // Validate accent_color is a valid hex or rgb color
+  if (accent_color && !/^#[0-9a-fA-F]{3,8}$/.test(accent_color) && !/^rgb/.test(accent_color)) {
+    return res.status(400).json({ error: 'Неверный формат цвета' });
+  }
+
   const MAX_SIZE = 10 * 1024 * 1024;
   if (avatar && avatar.startsWith('data:image/')) {
     if (Math.ceil((avatar.length * 3) / 4) > MAX_SIZE)
@@ -47,10 +52,14 @@ router.put('/vip', auth, (req, res) => {
     return res.status(403).json({ error: 'Нужна VIP роль для этих функций' });
   }
 
-  // Validate gradient
+  // Validate gradient — only allow safe CSS, no url() or other injection
   if (animated_name !== undefined && animated_name !== null && animated_name !== '') {
     if (!animated_name.match(/^(linear|radial)-gradient\(/)) {
       return res.status(400).json({ error: 'Неверный формат градиента. Пример: linear-gradient(90deg, #ff0080, #7928ca)' });
+    }
+    // Block url(), expression(), var() and other dangerous CSS
+    if (/url\s*\(|expression\s*\(|@import|javascript:/i.test(animated_name)) {
+      return res.status(400).json({ error: 'Недопустимые символы в градиенте' });
     }
     if (animated_name.length > 300) {
       return res.status(400).json({ error: 'Градиент слишком длинный' });
