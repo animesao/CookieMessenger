@@ -2413,7 +2413,8 @@ body {
   flex-direction: column;
   gap: 0;
   width: 100%;
-  max-width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
 }
 
 .up-loading {
@@ -2433,31 +2434,35 @@ body {
   font-size: 0.85rem;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  padding: 0.4rem 1rem;
+  padding: 0.4rem 0;
   margin-bottom: 0.75rem;
   transition: color 0.15s;
 }
 .up-back:hover { color: #aaa; }
 
-.up-banner {
-  height: 200px;
+/* ── Hero block (banner + avatar row) ── */
+.up-hero {
   background: #111;
-  border-radius: 0;
-  background-size: cover;
-  background-position: center;
-  border: none;
-  border-bottom: 1px solid #1a1a1a;
-  margin-bottom: -48px;
+  border: 1px solid #1a1a1a;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 1rem;
 }
 
-.up-header {
+.up-banner {
+  height: 180px;
+  background: linear-gradient(135deg, #111 0%, #1c1c1c 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.up-avatar-row {
   display: flex;
-  gap: 1rem;
-  padding: 0 2rem 1.5rem;
   align-items: flex-end;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+  justify-content: space-between;
+  padding: 0 1.5rem 1.25rem;
+  margin-top: -44px;
+  gap: 1rem;
 }
 
 .up-avatar-wrap {
@@ -2467,7 +2472,7 @@ body {
 
 .up-avatar {
   border-radius: 50%;
-  border: 3px solid #0a0a0a;
+  border: 4px solid #111;
   background: #1a1a1a;
   background-size: cover;
   background-position: center;
@@ -2480,12 +2485,12 @@ body {
 
 .up-online-dot {
   position: absolute;
-  bottom: 3px;
-  right: 3px;
+  bottom: 5px;
+  right: 5px;
   width: 14px;
   height: 14px;
   background: #40c057;
-  border: 2.5px solid #0a0a0a;
+  border: 2.5px solid #111;
   border-radius: 50%;
 }
 .up-online-dot--sm {
@@ -2495,50 +2500,12 @@ body {
   right: 1px;
 }
 
-.up-header-info {
-  flex: 1;
-  min-width: 0;
-  padding-top: 2.5rem;
-}
-
-.up-name-row {
+.up-actions {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.4rem;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding-bottom: 0.25rem;
 }
-
-.up-name {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin: 0;
-}
-.up-name.gradient-name {
-  background-size: 200% auto;
-  animation: gradientShift 3s linear infinite;
-}
-
-.up-username {
-  font-size: 0.8rem;
-  color: #444;
-  display: block;
-}
-
-.up-online-label {
-  font-size: 0.72rem;
-  color: #40c057;
-  margin-left: 0.5rem;
-}
-
-.up-bio {
-  font-size: 0.875rem;
-  color: #888;
-  margin: 0.4rem 0 0.75rem;
-  line-height: 1.5;
-}
-
-.up-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
 
 .up-msg-btn {
   display: flex;
@@ -2578,10 +2545,47 @@ body {
 .up-follow-btn:hover { border-color: #555; color: #ccc; }
 .up-follow-btn--active { background: transparent; }
 
+/* Info block under avatar row */
+.up-info-block {
+  padding: 0 1.5rem 1.25rem;
+}
+
+.up-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+  line-height: 1.2;
+}
+.up-name.gradient-name {
+  background-size: 200% auto;
+  animation: gradientShift 3s linear infinite;
+}
+
+.up-username {
+  font-size: 0.82rem;
+  color: #444;
+  display: inline;
+}
+
+.up-online-label {
+  font-size: 0.72rem;
+  color: #40c057;
+  margin-left: 0.5rem;
+  display: inline;
+}
+
+.up-bio {
+  font-size: 0.875rem;
+  color: #888;
+  margin: 0.5rem 0 0.75rem;
+  line-height: 1.55;
+}
+
 .up-stats {
   display: flex;
   gap: 1.25rem;
   flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
 
 .up-stat {
@@ -2605,10 +2609,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 1rem;
-  max-width: 100%;
   width: 100%;
-  padding: 0 2rem;
 }
 
 .up-empty {
@@ -2622,10 +2623,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-top: 1rem;
-  max-width: 100%;
   width: 100%;
-  padding: 0 2rem;
 }
 
 .up-user-row {

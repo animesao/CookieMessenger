@@ -151,70 +151,60 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
 
   return (
     <div className="user-profile">
-      {/* Back button */}
       <button className="up-back" onClick={onBack}>
         <ArrowLeft size={16} /> Назад
       </button>
 
-      {/* Banner */}
-      <div className="up-banner" style={{ backgroundImage: profile.banner ? `url(${profile.banner})` : undefined }} />
+      {/* Hero card */}
+      <div className="up-hero">
+        {/* Banner */}
+        <div className="up-banner" style={{ backgroundImage: profile.banner ? `url(${profile.banner})` : undefined }} />
 
-      {/* Header */}
-      <div className="up-header">
-        <div className="up-avatar-wrap">
-          <Avatar user={profile} size={72} />
-          {isOnline && <span className="up-online-dot" />}
+        {/* Avatar row with actions */}
+        <div className="up-avatar-row">
+          <div className="up-avatar-wrap">
+            <Avatar user={profile} size={80} />
+            {isOnline && <span className="up-online-dot" />}
+          </div>
+          {!isMe && (
+            <div className="up-actions">
+              <button className="up-msg-btn" onClick={() => onOpenChat?.(profile)}>
+                <MessageSquare size={14} /> Написать
+              </button>
+              <button
+                className={`up-follow-btn ${profile.isFollowing ? 'up-follow-btn--active' : ''}`}
+                style={profile.isFollowing ? { borderColor: accent, color: accent } : {}}
+                onClick={handleFollow}
+                disabled={followLoading}
+              >
+                {profile.isFollowing ? <><UserCheck size={14} /> Подписан</> : <><UserPlus size={14} /> Подписаться</>}
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="up-header-info">
-          <div className="up-name-row">
-            <div>
-              <h2 
-                className={`up-name${profile.animated_name ? ' gradient-name' : ''}`}
-                style={profile.animated_name 
-                  ? { background: profile.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
-                  : { color: accent }
-                }
-              >
-                {profile.display_name || profile.username}
-              </h2>
-              <span className="up-username">@{profile.username}</span>
-              {isOnline && <span className="up-online-label">онлайн</span>}
-            </div>
-            {!isMe && (
-              <div className="up-actions">
-                <button
-                  className="up-msg-btn"
-                  onClick={() => onOpenChat?.(profile)}
-                  title="Написать сообщение"
-                >
-                  <MessageSquare size={14} /> Написать
-                </button>
-                <button
-                  className={`up-follow-btn ${profile.isFollowing ? 'up-follow-btn--active' : ''}`}
-                  style={profile.isFollowing ? { borderColor: accent, color: accent } : {}}
-                  onClick={handleFollow}
-                  disabled={followLoading}
-                >
-                  {profile.isFollowing ? <><UserCheck size={14} /> Подписан</> : <><UserPlus size={14} /> Подписаться</>}
-                </button>
-              </div>
-            )}
-          </div>
-
+        {/* Name, bio, stats */}
+        <div className="up-info-block">
+          <h2
+            className={`up-name${profile.animated_name ? ' gradient-name' : ''}`}
+            style={profile.animated_name
+              ? { background: profile.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
+              : { color: accent }
+            }
+          >
+            {profile.display_name || profile.username}
+          </h2>
+          <span className="up-username">@{profile.username}</span>
+          {isOnline && <span className="up-online-label">онлайн</span>}
           {profile.bio && <p className="up-bio">{profile.bio}</p>}
-
-          {/* Stats */}
           <div className="up-stats">
             <button className={`up-stat ${tab === 'posts' ? 'active' : ''}`}
               onClick={() => handleTabChange('posts')} style={tab === 'posts' ? { color: accent } : {}}>
-              <FileText size={13} />
-              <strong>{profile.postsCount}</strong> постов
+              <FileText size={13} /><strong>{profile.postsCount}</strong> постов
             </button>
             <button className={`up-stat ${tab === 'followers' ? 'active' : ''}`}
               onClick={() => handleTabChange('followers')} style={tab === 'followers' ? { color: accent } : {}}>
-              <Users size={13} />
-              <strong>{profile.followers}</strong> подписчиков
+              <Users size={13} /><strong>{profile.followers}</strong> подписчиков
             </button>
             <button className={`up-stat ${tab === 'following' ? 'active' : ''}`}
               onClick={() => handleTabChange('following')} style={tab === 'following' ? { color: accent } : {}}>
