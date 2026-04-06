@@ -3,14 +3,8 @@ const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
 const { validateLengths, messageLimiter } = require('../middleware/security');
-const { encrypt, decrypt } = require('../utils/crypto');
 
 const router = express.Router();
-
-function decryptGroupMsg(msg) {
-  if (!msg) return msg;
-  return { ...msg, content: decrypt(msg.content) };
-}
 
 function isMember(groupId, userId) {
   return !!db.prepare('SELECT 1 FROM group_members WHERE group_id=? AND user_id=?').get(groupId, userId);
@@ -230,7 +224,7 @@ router.get('/:id/messages', auth, (req, res) => {
     FROM group_messages gm JOIN users u ON u.id=gm.sender_id
     WHERE gm.group_id=? ORDER BY gm.created_at ASC LIMIT 100
   `).all(group.id);
-  res.json(msgs.map(decryptGroupMsg));
+  res.json(msgs);
 });
 
 // ── POST /api/groups/:id/messages ─────────────────────────────────────────────
@@ -244,7 +238,7 @@ router.post('/:id/messages', auth, messageLimiter, validateLengths({ content: 20
 
   const result = db.prepare(
     'INSERT INTO group_messages (group_id, sender_id, content, media, media_type) VALUES (?, ?, ?, ?, ?)'
-  ).run(group.id, req.user.id, encrypt(content?.trim() || null), media || null, media_type || null);
+  ).run(group.id, req.user.id, content?.trim() || null, media || null, media_type || null);
 
   const msg = db.prepare(`
     SELECT gm.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name
@@ -253,10 +247,9 @@ router.post('/:id/messages', auth, messageLimiter, validateLengths({ content: 20
 
   // Send to all group members
   const members = db.prepare('SELECT user_id FROM group_members WHERE group_id=?').all(group.id);
-  const decMsg = decryptGroupMsg(msg);
-  members.forEach(m => ws.sendTo(m.user_id, 'group_message', { groupId: group.id, message: decMsg }));
+  members.forEach(m => ws.sendTo(m.user_id, 'group_message', { groupId: group.id, message: msg }));
 
-  res.json(decMsg);
+  res.json(msg);
 });
 
 // ── POST /api/groups/:id/kick/:userId (admin/owner) ───────────────────────────

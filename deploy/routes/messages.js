@@ -3,15 +3,8 @@ const db = require('../db');
 const ws = require('../ws');
 const auth = require('../middleware/auth');
 const { validateLengths, messageLimiter } = require('../middleware/security');
-const { encrypt, decrypt } = require('../utils/crypto');
 
 const router = express.Router();
-
-// Decrypt message content for sending to client
-function decryptMsg(msg) {
-  if (!msg) return msg;
-  return { ...msg, content: decrypt(msg.content) };
-}
 
 // Per-user cooldown: 1 message per 500ms
 const msgCooldown = new Map();
@@ -74,7 +67,7 @@ router.get('/conversations', auth, (req, res) => {
     JOIN messages m ON m.id = conv.last_id
     ORDER BY m.created_at DESC
   `).all(req.user.id, req.user.id, req.user.id, req.user.id);
-  res.json(convos.map(c => ({ ...c, last_message: decrypt(c.last_message) })));
+  res.json(convos);
 });
 
 // GET /api/messages/unread-count
@@ -117,8 +110,8 @@ router.get('/:userId', auth, (req, res) => {
   `).all(req.user.id, otherId, otherId, req.user.id);
 
   res.json(msgs.map(m => ({
-    ...decryptMsg(m),
-    reply_content: decrypt(m.reply_content),
+    ...m,
+    reply_content: m.reply_content,
   })));
 });
 
@@ -150,7 +143,7 @@ router.post('/:userId', auth, messageLimiter, validateLengths({ content: 2000 })
 
   const result = db.prepare(
     'INSERT INTO messages (sender_id, receiver_id, content, media, media_type, reply_to_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(req.user.id, receiverId, encrypt(content?.trim() || null), media || null, media_type || null, replyId);
+  ).run(req.user.id, receiverId, content?.trim() || null, media || null, media_type || null, replyId);
 
   const msg = db.prepare(`
     SELECT m.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name, u.verified,
@@ -162,7 +155,7 @@ router.post('/:userId', auth, messageLimiter, validateLengths({ content: 2000 })
     WHERE m.id = ?
   `).get(result.lastInsertRowid);
 
-  const decryptedMsg = decryptMsg(msg);
+  const decryptedMsg = msg;
   ws.sendTo(receiverId, 'new_message', decryptedMsg);
   ws.sendTo(req.user.id, 'new_message', decryptedMsg);
 
@@ -182,7 +175,7 @@ router.put('/:msgId', auth, validateLengths({ content: 2000 }), (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Пустое сообщение' });
 
-  db.prepare('UPDATE messages SET content = ?, edited = 1 WHERE id = ?').run(encrypt(content.trim()), msgId);
+  db.prepare('UPDATE messages SET content = ?, edited = 1 WHERE id = ?').run(content.trim(), msgId);
 
   const updated = { ...msg, content: content.trim(), edited: 1 };
   ws.sendTo(msg.receiver_id, 'message_edited', { msgId, content: content.trim() });
