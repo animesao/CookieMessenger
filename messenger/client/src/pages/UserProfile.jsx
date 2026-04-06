@@ -186,18 +186,22 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
 
         {/* Name, bio, stats */}
         <div className="up-info-block">
-          <h2
-            className={`up-name${profile.animated_name ? ' gradient-name' : ''}`}
-            style={profile.animated_name
-              ? { background: profile.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
-              : { color: accent }
-            }
-          >
-            {profile.display_name || profile.username}
-          </h2>
-          {profile.verified ? <VerifiedBadge size={18} /> : null}
-          <span className="up-username">@{profile.username}</span>
-          {isOnline && <span className="up-online-label">онлайн</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <h2
+              className={`up-name${profile.animated_name ? ' gradient-name' : ''}`}
+              style={profile.animated_name
+                ? { background: profile.animated_name, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent' }
+                : { color: accent }
+              }
+            >
+              {profile.display_name || profile.username}
+            </h2>
+            {profile.verified ? <VerifiedBadge size={18} /> : null}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <span className="up-username">@{profile.username}</span>
+            {isOnline && <span className="up-online-label">онлайн</span>}
+          </div>
           {profile.bio && <p className="up-bio">{profile.bio}</p>}
           <div className="up-stats">
             <button className={`up-stat ${tab === 'posts' ? 'active' : ''}`}

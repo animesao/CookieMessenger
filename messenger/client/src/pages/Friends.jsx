@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, UserPlus, UserCheck, UserX, Users, Clock, Check, X } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 
@@ -23,7 +24,7 @@ function Avatar({ user, size = 40 }) {
   );
 }
 
-function FriendCard({ user, friendship, onAction, onMessage }) {
+function FriendCard({ user, friendship, onAction, onMessage, onProfile }) {
   const [loading, setLoading] = useState(false);
   const accent = user.accent_color || '#fff';
   const name = user.display_name || user.username;
@@ -36,8 +37,10 @@ function FriendCard({ user, friendship, onAction, onMessage }) {
 
   return (
     <div className="fr-card">
-      <Avatar user={user} />
-      <div className="fr-card-info">
+      <div style={{ cursor: 'pointer' }} onClick={() => onProfile(user.username)}>
+        <Avatar user={user} />
+      </div>
+      <div className="fr-card-info" style={{ cursor: 'pointer' }} onClick={() => onProfile(user.username)}>
         <span className="verified-name-row">
           <span
             className={`fr-card-name${user.animated_name ? ' gradient-name' : ''}`}
@@ -88,6 +91,7 @@ function FriendCard({ user, friendship, onAction, onMessage }) {
 }
 
 export default function Friends({ user, onOpenChat }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('friends'); // friends | search | requests
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -201,6 +205,7 @@ export default function Friends({ user, onOpenChat }) {
               friendship={{ status: 'accepted', isMine: true }}
               onAction={handleAction}
               onMessage={onOpenChat}
+              onProfile={(username) => navigate(`/profile/${username}`)}
             />
           ))}
         </div>
@@ -220,6 +225,7 @@ export default function Friends({ user, onOpenChat }) {
               friendship={{ status: 'pending', isMine: false, id: r.friendship_id }}
               onAction={handleAction}
               onMessage={onOpenChat}
+              onProfile={(username) => navigate(`/profile/${username}`)}
             />
           ))}
         </div>
@@ -249,6 +255,7 @@ export default function Friends({ user, onOpenChat }) {
                 friendship={u.friendship}
                 onAction={handleAction}
                 onMessage={onOpenChat}
+                onProfile={(username) => navigate(`/profile/${username}`)}
               />
             ))}
           </div>
