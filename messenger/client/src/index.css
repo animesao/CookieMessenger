@@ -393,6 +393,28 @@ body::after {
 }
 .sidebar-logout:hover { background: #161616; color: #ff6b6b; }
 
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  margin-top: auto;
+  margin-bottom: 0.5rem;
+}
+.sidebar-footer-link {
+  font-size: 0.72rem;
+  color: #333;
+  text-decoration: none;
+  transition: color 0.15s;
+  line-height: 1.6;
+}
+.sidebar-footer-link:hover { color: #666; }
+.sidebar-footer-copy {
+  font-size: 0.68rem;
+  color: #2a2a2a;
+  margin-top: 0.4rem;
+}
+
 /* Main — offset by sidebar width, fills rest */
 .profile-main {
   margin-left: 240px;
@@ -4250,6 +4272,9 @@ body::after {
 [data-theme="light"] .sidebar-item.active { background: var(--bg4); }
 [data-theme="light"] .sidebar-logout { color: var(--text4); }
 [data-theme="light"] .sidebar-logout:hover { background: var(--bg4); color: #e05555; }
+[data-theme="light"] .sidebar-footer-link { color: var(--text4); }
+[data-theme="light"] .sidebar-footer-link:hover { color: var(--text3); }
+[data-theme="light"] .sidebar-footer-copy { color: var(--text4); }
 [data-theme="light"] .profile-main { background: var(--bg); }
 [data-theme="light"] .profile-hero { background: var(--bg3); border-color: var(--border); }
 [data-theme="light"] .profile-banner { background: var(--bg2); }
@@ -4458,6 +4483,8 @@ body::after {
     min-width: 48px;
     align-items: center;
   }
+
+  .sidebar-footer { display: none; }
 
   .sidebar-badge {
     font-size: 0.55rem;

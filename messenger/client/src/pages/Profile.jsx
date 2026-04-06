@@ -434,6 +434,13 @@ export default function Profile({ user, onUpdate, onLogout }) {
               <Shield size={17} /> Настройки
             </button>
           </nav>
+          <div className="sidebar-footer">
+            <a href="/status" className="sidebar-footer-link">Статус серверов</a>
+            <a href="/terms" className="sidebar-footer-link">Условия использования</a>
+            <a href="/privacy" className="sidebar-footer-link">Конфиденциальность</a>
+            <a href="/cookies" className="sidebar-footer-link">Политика Cookies</a>
+            <span className="sidebar-footer-copy">© 2026 RLC</span>
+          </div>
           <button className="sidebar-logout" onClick={onLogout}>
             <LogOut size={15} /> Выйти
           </button>
@@ -498,6 +505,13 @@ export default function Profile({ user, onUpdate, onLogout }) {
           )}
         </nav>
 
+        <div className="sidebar-footer">
+          <a href="/status" className="sidebar-footer-link">Статус серверов</a>
+          <a href="/terms" className="sidebar-footer-link">Условия использования</a>
+          <a href="/privacy" className="sidebar-footer-link">Конфиденциальность</a>
+          <a href="/cookies" className="sidebar-footer-link">Политика Cookies</a>
+          <span className="sidebar-footer-copy">© 2026 RLC</span>
+        </div>
         <button className="sidebar-logout" onClick={onLogout}>
           <LogOut size={15} /> Выйти
         </button>
