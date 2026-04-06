@@ -15,7 +15,7 @@ export default function Feed({ user, onOpenChat }) {
   const [initial, setInitial] = useState(true);
   const [error, setError] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const notifRef = useRef(null);
+  const notifRef = useRef(null); // kept for compatibility
   const accent = user.accent_color || '#fff';
 
   const loadPosts = useCallback(async (p = 1, replace = false) => {
@@ -70,7 +70,7 @@ export default function Feed({ user, onOpenChat }) {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, poll } : p));
     },
     notification: (notif) => {
-      notifRef.current?.bumpUnread(notif);
+      window.dispatchEvent(new CustomEvent('ws_notification_bump', { detail: notif }));
     },
     // friend_request, friend_accepted, new_message, user_online, user_offline
     // are auto-dispatched as ws_* DOM events by the useWebSocket hook
@@ -115,7 +115,6 @@ export default function Feed({ user, onOpenChat }) {
     <div className="feed-page">
       <div className="feed-header">
         <span className="feed-title">Лента</span>
-        <NotificationBell ref={notifRef} accent={accent} />
       </div>
 
       <div className="feed-content">

@@ -9,6 +9,7 @@ import {
 import ImageCropper from '../components/ImageCropper';
 import ChangelogModal from '../components/ChangelogModal';
 import CallManager from '../components/CallManager';
+import NotificationBell from '../components/NotificationPanel';
 import PostCard from '../components/PostCard';
 import ProfileMusicPlayer from '../components/ProfileMusicPlayer';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -870,7 +871,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
         )}
 
         {tab === 'feed' && (
-          <div className="profile-content" style={{ maxWidth: 680 }}>
+          <div className="profile-content" style={{ maxWidth: 680, marginLeft: 'auto', marginRight: 'auto' }}>
             <Feed user={user} onOpenChat={(targetUser) => {
               setChatTarget(targetUser);
               setTab('messages');
@@ -931,6 +932,11 @@ export default function Profile({ user, onUpdate, onLogout }) {
       {user.profile_music && tab === 'profile' && (
         <ProfileMusicPlayer src={user.profile_music} username={user.username} accent={accent} />
       )}
+
+      {/* Notification bell — fixed top right corner */}
+      <div className="notif-bell-wrap" style={{ position: 'fixed', top: 20, right: 20, zIndex: 200 }}>
+        <NotificationBell accent={accent} />
+      </div>
 
       {/* Global call manager — always mounted so it can receive incoming calls */}
       <CallManager currentUser={user} />

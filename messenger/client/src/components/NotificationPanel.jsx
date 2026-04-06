@@ -72,6 +72,17 @@ export default forwardRef(function NotificationBell({ accent }, ref) {
     },
   }));
 
+  // Also listen for global notification bump events (from Feed, etc.)
+  useEffect(() => {
+    const handler = (e) => {
+      setUnread(n => n + 1);
+      playSound();
+      showPush(e.detail);
+    };
+    window.addEventListener('ws_notification_bump', handler);
+    return () => window.removeEventListener('ws_notification_bump', handler);
+  }, []);
+
   // Notification sound (generated via Web Audio API — no file needed)
   const playSound = () => {
     try {
