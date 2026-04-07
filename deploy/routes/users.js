@@ -5,6 +5,31 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+// Batch enrich posts (same logic as feed.js but inline to avoid circular deps)
+function enrichPostsBatch(posts, userId) {
+  if (!posts.length) return [];
+  const ids = posts.map(p => p.id);
+  const ph = ids.map(() => '?').join(',');
+
+  const likesMap = Object.fromEntries(
+    db.prepare(`SELECT post_id, COUNT(*) as c FROM likes WHERE post_id IN (${ph}) GROUP BY post_id`).all(...ids).map(r => [r.post_id, r.c])
+  );
+  const likedSet = new Set(
+    db.prepare(`SELECT post_id FROM likes WHERE post_id IN (${ph}) AND user_id = ?`).all(...ids, userId).map(r => r.post_id)
+  );
+  const commentsMap = Object.fromEntries(
+    db.prepare(`SELECT post_id, COUNT(*) as c FROM comments WHERE post_id IN (${ph}) GROUP BY post_id`).all(...ids).map(r => [r.post_id, r.c])
+  );
+
+  return posts.map(post => ({
+    ...post,
+    likes: likesMap[post.id] || 0,
+    liked: likedSet.has(post.id),
+    commentsCount: commentsMap[post.id] || 0,
+    poll: null,
+  }));
+}
+
 // GET /api/users/online — list of online user IDs
 router.get('/online', auth, (req, res) => {
   res.json(ws.getOnlineUsers());
@@ -47,7 +72,7 @@ router.get('/:username/posts', auth, (req, res) => {
 
   const total = db.prepare('SELECT COUNT(*) as c FROM posts WHERE user_id = ?').get(user.id).c;
 
-  // Enrich posts
+  // Enrich posts in batch
   const enriched = posts.map(post => {
     const likes = db.prepare('SELECT COUNT(*) as c FROM likes WHERE post_id = ?').get(post.id).c;
     const liked = !!db.prepare('SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?').get(post.id, req.user.id);
@@ -69,7 +94,7 @@ router.get('/:username/posts', auth, (req, res) => {
     return { ...post, likes, liked, commentsCount, poll };
   });
 
-  res.json({ posts: enriched, hasMore: offset + limit < total });
+  res.json({ posts: enrichPostsBatch(posts, req.user.id), hasMore: offset + limit < total });
 });
 
 // GET /api/users/:username/followers

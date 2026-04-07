@@ -6,10 +6,24 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3001',
-      '/ws': {
-        target: 'ws://localhost:3001',
-        ws: true,
+      '/ws': { target: 'ws://localhost:3001', ws: true },
+    },
+  },
+  build: {
+    // Chunk splitting for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'lucide': ['lucide-react'],
+        },
       },
     },
+    // Minify
+    minify: 'esbuild',
+    // Reduce chunk size warnings threshold
+    chunkSizeWarningLimit: 600,
+    // Target modern browsers
+    target: 'es2020',
   },
 });

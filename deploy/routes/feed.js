@@ -38,28 +38,92 @@ function notify(userId, actorId, type, postId = null, commentId = null) {
   if (notif) ws.sendTo(userId, 'notification', notif);
 }
 
-function enrichPost(post, userId) {
-  const likes = db.prepare('SELECT COUNT(*) as c FROM likes WHERE post_id = ?').get(post.id).c;
-  const liked = !!db.prepare('SELECT 1 FROM likes WHERE post_id = ? AND user_id = ?').get(post.id, userId);
-  const commentsCount = db.prepare('SELECT COUNT(*) as c FROM comments WHERE post_id = ?').get(post.id).c;
-  const views = db.prepare('SELECT COUNT(*) as c FROM post_views WHERE post_id = ?').get(post.id).c;
+function enrichPosts(posts, userId) {
+  if (!posts.length) return [];
 
-  let poll = null;
-  if (post.type === 'poll') {
-    const options = db.prepare('SELECT * FROM poll_options WHERE post_id = ?').all(post.id);
-    const userVote = db.prepare(`
-      SELECT pv.option_id FROM poll_votes pv
-      JOIN poll_options po ON po.id = pv.option_id
-      WHERE po.post_id = ? AND pv.user_id = ?
-    `).get(post.id, userId);
-    poll = options.map(o => ({
-      ...o,
-      votes: db.prepare('SELECT COUNT(*) as c FROM poll_votes WHERE option_id = ?').get(o.id).c,
-      voted: userVote?.option_id === o.id,
-    }));
+  const ids = posts.map(p => p.id);
+  const placeholders = ids.map(() => '?').join(',');
+
+  // Batch: likes count per post
+  const likesRows = db.prepare(
+    `SELECT post_id, COUNT(*) as c FROM likes WHERE post_id IN (${placeholders}) GROUP BY post_id`
+  ).all(...ids);
+  const likesMap = Object.fromEntries(likesRows.map(r => [r.post_id, r.c]));
+
+  // Batch: user liked
+  const likedRows = db.prepare(
+    `SELECT post_id FROM likes WHERE post_id IN (${placeholders}) AND user_id = ?`
+  ).all(...ids, userId);
+  const likedSet = new Set(likedRows.map(r => r.post_id));
+
+  // Batch: comments count
+  const commentsRows = db.prepare(
+    `SELECT post_id, COUNT(*) as c FROM comments WHERE post_id IN (${placeholders}) GROUP BY post_id`
+  ).all(...ids);
+  const commentsMap = Object.fromEntries(commentsRows.map(r => [r.post_id, r.c]));
+
+  // Batch: views count
+  const viewsRows = db.prepare(
+    `SELECT post_id, COUNT(*) as c FROM post_views WHERE post_id IN (${placeholders}) GROUP BY post_id`
+  ).all(...ids);
+  const viewsMap = Object.fromEntries(viewsRows.map(r => [r.post_id, r.c]));
+
+  // Batch: poll options for poll posts
+  const pollIds = posts.filter(p => p.type === 'poll').map(p => p.id);
+  let pollOptionsMap = {};
+  let pollVotesMap = {};
+  let userVotesMap = {};
+
+  if (pollIds.length) {
+    const pollPlaceholders = pollIds.map(() => '?').join(',');
+    const options = db.prepare(
+      `SELECT * FROM poll_options WHERE post_id IN (${pollPlaceholders})`
+    ).all(...pollIds);
+    options.forEach(o => {
+      if (!pollOptionsMap[o.post_id]) pollOptionsMap[o.post_id] = [];
+      pollOptionsMap[o.post_id].push(o);
+    });
+
+    const optionIds = options.map(o => o.id);
+    if (optionIds.length) {
+      const optPlaceholders = optionIds.map(() => '?').join(',');
+      const votes = db.prepare(
+        `SELECT option_id, COUNT(*) as c FROM poll_votes WHERE option_id IN (${optPlaceholders}) GROUP BY option_id`
+      ).all(...optionIds);
+      pollVotesMap = Object.fromEntries(votes.map(v => [v.option_id, v.c]));
+
+      const userVotes = db.prepare(
+        `SELECT pv.option_id, po.post_id FROM poll_votes pv
+         JOIN poll_options po ON po.id = pv.option_id
+         WHERE po.post_id IN (${pollPlaceholders}) AND pv.user_id = ?`
+      ).all(...pollIds, userId);
+      userVotes.forEach(v => { userVotesMap[v.post_id] = v.option_id; });
+    }
   }
 
-  return { ...post, likes, liked, commentsCount, views, poll };
+  return posts.map(post => {
+    let poll = null;
+    if (post.type === 'poll' && pollOptionsMap[post.id]) {
+      poll = pollOptionsMap[post.id].map(o => ({
+        ...o,
+        votes: pollVotesMap[o.id] || 0,
+        voted: userVotesMap[post.id] === o.id,
+      }));
+    }
+    return {
+      ...post,
+      likes: likesMap[post.id] || 0,
+      liked: likedSet.has(post.id),
+      commentsCount: commentsMap[post.id] || 0,
+      views: viewsMap[post.id] || 0,
+      poll,
+    };
+  });
+}
+
+// Keep single-post enrichment for backwards compat
+function enrichPost(post, userId) {
+  return enrichPosts([post], userId)[0];
 }
 
 // ─── Feed ────────────────────────────────────────────────────────────────────
@@ -76,7 +140,7 @@ router.get('/', auth, (req, res) => {
   `).all(limit, offset);
 
   const total = db.prepare('SELECT COUNT(*) as c FROM posts').get().c;
-  res.json({ posts: posts.map(p => enrichPost(p, req.user.id)), hasMore: offset + limit < total });
+  res.json({ posts: enrichPosts(posts, req.user.id), hasMore: offset + limit < total });
 });
 
 router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, res) => {

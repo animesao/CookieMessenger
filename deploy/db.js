@@ -190,6 +190,25 @@ db.exec(`
   )
 `);
 
+// Performance indexes
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
+  CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
+  CREATE INDEX IF NOT EXISTS idx_likes_user_post ON likes(post_id, user_id);
+  CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+  CREATE INDEX IF NOT EXISTS idx_post_views_post ON post_views(post_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(sender_id, receiver_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
+  CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
+  CREATE INDEX IF NOT EXISTS idx_friendships_users ON friendships(requester_id, addressee_id, status);
+  CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages(group_id, created_at ASC);
+  CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+`);
+
 // User roles (multiple roles per user)
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_roles (
