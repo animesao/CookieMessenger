@@ -2168,11 +2168,14 @@ body::after {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Messages and Groups inside profile — fill container */
 .profile-content--full .messages-page,
-.profile-content--full .groups-page {
+.profile-content--full .groups-page,
+.profile-content--full .grp-chat {
   height: 100%;
   min-height: 0;
   flex: 1;
@@ -5428,12 +5431,14 @@ body::after {
 .profile-main:has(.profile-content--full) {
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GROUPS
    ═══════════════════════════════════════════════════════════════════════════ */
-.groups-page { display: flex; height: calc(100vh - 0px); overflow: hidden; }
+.groups-page { display: flex; height: 100%; overflow: hidden; }
 .groups-sidebar { width: 300px; flex-shrink: 0; background: #0d0d0d; border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; overflow: hidden; }
 .grp-create-btn { background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px; border-radius: 6px; transition: background 0.15s; }
 .grp-create-btn:hover { background: #1a1a1a; }
@@ -5450,7 +5455,7 @@ body::after {
 .grp-invite-btn:hover { opacity: 0.8; }
 
 /* Group chat */
-.grp-chat { display: flex; flex-direction: column; height: 100%; }
+.grp-chat { display: flex; flex-direction: column; height: 100%; overflow: hidden; flex: 1; min-height: 0; }
 .grp-chat-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid #1a1a1a; background: #0d0d0d; flex-shrink: 0; }
 .grp-tab-btn { background: none; border: 1px solid transparent; border-radius: 6px; color: #555; cursor: pointer; padding: 5px 7px; display: flex; align-items: center; transition: all 0.15s; }
 .grp-tab-btn:hover { background: #1a1a1a; color: #aaa; }
@@ -5526,20 +5531,25 @@ body::after {
 [data-theme="light"] .sidebar-badge { background: #ff6b6b; }
 
 /* ── Group chat layout fix ───────────────────────────────────────────────── */
-.grp-chat { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.grp-chat { display: flex; flex-direction: column; height: 100%; overflow: hidden; flex: 1; min-height: 0; }
 .grp-chat .msg-messages {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 4px;
   background: var(--bg, #0a0a0a);
+  -webkit-overflow-scrolling: touch;
 }
 .grp-chat .msg-input-area {
   flex-shrink: 0;
+  position: relative !important;
+  bottom: auto !important;
   border-top: 1px solid #1a1a1a;
   background: #0d0d0d;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 .grp-chat .msg-media-preview {
   flex-shrink: 0;
@@ -5551,6 +5561,8 @@ body::after {
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    flex: 1;
+    min-height: 0;
   }
   .grp-chat .msg-messages {
     flex: 1;
