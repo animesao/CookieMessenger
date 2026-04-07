@@ -947,10 +947,12 @@ export default function Profile({ user, onUpdate, onLogout }) {
         <ProfileMusicPlayer src={user.profile_music} username={user.username} accent={accent} />
       )}
 
-      {/* Notification bell — fixed top right corner */}
-      <div className="notif-bell-wrap" style={{ position: 'fixed', top: 20, right: 20, zIndex: 200 }}>
-        <NotificationBell accent={accent} />
-      </div>
+      {/* Notification bell — fixed top right, only on feed tab */}
+      {tab === 'feed' && (
+        <div className="notif-bell-wrap" style={{ position: 'fixed', top: 20, right: 20, zIndex: 200 }}>
+          <NotificationBell accent={accent} />
+        </div>
+      )}
 
       {/* Global call manager — always mounted so it can receive incoming calls */}
       <CallManager currentUser={user} />
