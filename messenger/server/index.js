@@ -69,6 +69,26 @@ app.use('/api/groups', groupsRoutes);
 app.use('/api/channels', channelsRoutes);
 app.use('/api/bookmarks', bookmarksRoutes);
 
+// ── POST /api/report — submit a report ───────────────────────────────────────
+app.post('/api/report', require('./middleware/auth'), (req, res) => {
+  const db = require('./db');
+  const { target_type, target_id, reason } = req.body;
+  if (!['channel', 'group', 'post', 'user'].includes(target_type))
+    return res.status(400).json({ error: 'Неверный тип' });
+  if (!reason?.trim()) return res.status(400).json({ error: 'Укажите причину' });
+  if (!target_id) return res.status(400).json({ error: 'Неверный ID' });
+
+  // Prevent duplicate reports from same user
+  const existing = db.prepare(
+    'SELECT id FROM reports WHERE reporter_id = ? AND target_type = ? AND target_id = ? AND status = "pending"'
+  ).get(req.user.id, target_type, target_id);
+  if (existing) return res.status(409).json({ error: 'Вы уже отправили жалобу на этот объект' });
+
+  db.prepare('INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (?, ?, ?, ?)')
+    .run(req.user.id, target_type, target_id, reason.trim().slice(0, 500));
+  res.json({ ok: true });
+});
+
 // ── Public status endpoint (no auth) ─────────────────────────────────────────
 app.get('/api/status', (req, res) => {
   const db = require('./db');

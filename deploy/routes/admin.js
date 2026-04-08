@@ -220,4 +220,42 @@ router.post('/users/:id/verify', auth, adminOnly, (req, res) => {
   res.json({ ok: true, verified: newVal });
 });
 
+// ── DELETE /api/admin/channels/:id — delete any channel ──────────────────────
+router.delete('/channels/:id', auth, adminOnly, (req, res) => {
+  const channel = db.prepare('SELECT id, name FROM channels WHERE id = ?').get(req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  db.prepare('DELETE FROM channels WHERE id = ?').run(channel.id);
+  res.json({ ok: true });
+});
+
+// ── DELETE /api/admin/groups/:id — delete any group ──────────────────────────
+router.delete('/groups/:id', auth, adminOnly, (req, res) => {
+  const group = db.prepare('SELECT id, name FROM groups WHERE id = ?').get(req.params.id);
+  if (!group) return res.status(404).json({ error: 'Группа не найдена' });
+  db.prepare('DELETE FROM groups WHERE id = ?').run(group.id);
+  res.json({ ok: true });
+});
+
+// ── GET /api/admin/reports — get all reports ──────────────────────────────────
+router.get('/reports', auth, adminOnly, (req, res) => {
+  const { status = 'pending', page = 1 } = req.query;
+  const offset = (parseInt(page) - 1) * 20;
+  const reports = db.prepare(`
+    SELECT r.*, u.username as reporter_username, u.display_name as reporter_display_name
+    FROM reports r JOIN users u ON u.id = r.reporter_id
+    WHERE r.status = ?
+    ORDER BY r.created_at DESC LIMIT 20 OFFSET ?
+  `).all(status, offset);
+  const total = db.prepare('SELECT COUNT(*) as c FROM reports WHERE status = ?').get(status).c;
+  res.json({ reports, total });
+});
+
+// ── POST /api/admin/reports/:id/review — mark report as reviewed ──────────────
+router.post('/reports/:id/review', auth, adminOnly, (req, res) => {
+  const { action = 'reviewed' } = req.body; // reviewed | dismissed
+  if (!['reviewed', 'dismissed'].includes(action)) return res.status(400).json({ error: 'Неверное действие' });
+  db.prepare('UPDATE reports SET status = ? WHERE id = ?').run(action, req.params.id);
+  res.json({ ok: true });
+});
+
 module.exports = router;

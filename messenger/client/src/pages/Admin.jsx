@@ -367,6 +367,114 @@ function PostsTab({ accent }) {
   );
 }
 
+// ── Reports tab ───────────────────────────────────────────────────────────────
+function ReportsTab({ accent }) {
+  const [reports, setReports] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [status, setStatus] = useState('pending');
+  const [loading, setLoading] = useState(false);
+  const [flash, setFlash] = useState(null);
+
+  const load = async (s = status) => {
+    setLoading(true);
+    const res = await api(`/api/admin/reports?status=${s}`);
+    if (res.ok) { const d = await res.json(); setReports(d.reports); setTotal(d.total); }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [status]);
+
+  const showFlash = (msg, ok = true) => { setFlash({ msg, ok }); setTimeout(() => setFlash(null), 3000); };
+
+  const handleAction = async (id, action) => {
+    const res = await api(`/api/admin/reports/${id}/review`, { method: 'POST', body: JSON.stringify({ action }) });
+    if (res.ok) { showFlash('Статус обновлён'); load(); }
+    else showFlash('Ошибка', false);
+  };
+
+  const handleDeleteTarget = async (report) => {
+    const endpoint = report.target_type === 'channel'
+      ? `/api/admin/channels/${report.target_id}`
+      : report.target_type === 'group'
+      ? `/api/admin/groups/${report.target_id}`
+      : null;
+    if (!endpoint) return showFlash('Удаление недоступно для этого типа', false);
+    if (!confirm(`Удалить ${report.target_type} #${report.target_id}?`)) return;
+    const res = await api(endpoint, { method: 'DELETE' });
+    if (res.ok) { showFlash(`${report.target_type} удалён`); handleAction(report.id, 'reviewed'); }
+    else showFlash('Ошибка удаления', false);
+  };
+
+  const TYPE_LABEL = { channel: 'Канал', group: 'Группа', post: 'Пост', user: 'Пользователь' };
+
+  return (
+    <div className="adm-tab-content">
+      {flash && <div className={`adm-flash ${flash.ok ? 'adm-flash-ok' : 'adm-flash-err'}`}>{flash.msg}</div>}
+
+      <div className="adm-toolbar">
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['pending', 'reviewed', 'dismissed'].map(s => (
+            <button key={s} className={`adm-btn ${status === s ? 'adm-btn-primary' : 'adm-btn-ghost'}`}
+              onClick={() => setStatus(s)} style={status === s ? { borderColor: accent, color: accent } : {}}>
+              {s === 'pending' ? 'Новые' : s === 'reviewed' ? 'Рассмотрены' : 'Отклонены'}
+            </button>
+          ))}
+        </div>
+        <span className="adm-total">Всего: {total}</span>
+      </div>
+
+      <div className="adm-table-wrap">
+        <table className="adm-table">
+          <thead>
+            <tr>
+              <th>От кого</th>
+              <th>Тип</th>
+              <th>ID объекта</th>
+              <th>Причина</th>
+              <th>Дата</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={6} className="adm-table-loading">Загрузка...</td></tr>}
+            {!loading && reports.length === 0 && <tr><td colSpan={6} className="adm-table-loading">Жалоб нет</td></tr>}
+            {!loading && reports.map(r => (
+              <tr key={r.id}>
+                <td>
+                  <span className="adm-cell-muted">@{r.reporter_username}</span>
+                </td>
+                <td><span className="adm-type-badge">{TYPE_LABEL[r.target_type] || r.target_type}</span></td>
+                <td className="adm-cell-muted">#{r.target_id}</td>
+                <td style={{ maxWidth: 200, wordBreak: 'break-word', fontSize: '0.82rem', color: '#aaa' }}>{r.reason}</td>
+                <td className="adm-cell-muted">{new Date(r.created_at).toLocaleDateString('ru-RU')}</td>
+                <td>
+                  <div className="adm-actions">
+                    {status === 'pending' && (
+                      <>
+                        <button className="adm-action-btn adm-action-unban" onClick={() => handleAction(r.id, 'reviewed')} title="Рассмотрено">
+                          <CheckCircle size={14} />
+                        </button>
+                        <button className="adm-action-btn" onClick={() => handleAction(r.id, 'dismissed')} title="Отклонить" style={{ color: '#555' }}>
+                          <X size={14} />
+                        </button>
+                        {(r.target_type === 'channel' || r.target_type === 'group') && (
+                          <button className="adm-action-btn adm-action-delete" onClick={() => handleDeleteTarget(r)} title="Удалить объект">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Broadcast tab ─────────────────────────────────────────────────────────────
 function BroadcastTab({ accent }) {
   const [msg, setMsg] = useState('');
@@ -625,6 +733,7 @@ export default function Admin({ user, onBack }) {
     { id: 'users',     label: 'Пользователи', icon: Users },
     { id: 'roles',     label: 'Роли',         icon: Crown },
     { id: 'posts',     label: 'Посты',        icon: FileText },
+    { id: 'reports',   label: 'Жалобы',       icon: AlertTriangle },
     { id: 'broadcast', label: 'Рассылка',     icon: Megaphone },
   ];
 
@@ -724,6 +833,7 @@ export default function Admin({ user, onBack }) {
         {tab === 'users'     && <UsersTab accent={accent} />}
         {tab === 'roles'     && <RolesTab accent={accent} />}
         {tab === 'posts'     && <PostsTab accent={accent} />}
+        {tab === 'reports'   && <ReportsTab accent={accent} />}
         {tab === 'broadcast' && <BroadcastTab accent={accent} />}
       </main>
     </div>

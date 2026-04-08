@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile } from 'lucide-react';
+import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile, Flag } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 
 function api(path, opts = {}) {
@@ -149,6 +149,76 @@ function ChannelFormModal({ initial, onClose, onSave, title }) {
   );
 }
 
+function ReportModal({ targetType, targetId, onClose }) {
+  const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+
+  const REASONS = ['Спам', 'Мошенничество', 'Оскорбительный контент', 'Нарушение правил', 'Другое'];
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return;
+    setLoading(true);
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, reason }),
+    });
+    const data = await res.json();
+    if (res.ok) setDone(true);
+    else setError(data.error || 'Ошибка');
+    setLoading(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Пожаловаться</h3>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          {done ? (
+            <div style={{ textAlign: 'center', padding: '1rem', color: '#69db7c' }}>
+              ✓ Жалоба отправлена. Мы рассмотрим её в ближайшее время.
+            </div>
+          ) : (
+            <>
+              {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+              <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '1rem' }}>Выберите причину жалобы:</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+                {REASONS.map(r => (
+                  <button key={r} type="button" onClick={() => setReason(r)}
+                    style={{ padding: '0.6rem 0.9rem', borderRadius: 8, border: `1px solid ${reason === r ? '#fff' : '#222'}`, background: reason === r ? '#1e1e1e' : 'transparent', color: reason === r ? '#fff' : '#666', cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem' }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Опишите проблему подробнее..."
+                maxLength={500}
+                rows={3}
+                style={{ width: '100%', padding: '0.65rem 0.9rem', background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'none' }}
+              />
+            </>
+          )}
+        </div>
+        {!done && (
+          <div className="modal-footer">
+            <button className="btn-back" onClick={onClose}>Отмена</button>
+            <button className="btn-next" onClick={handleSubmit} disabled={loading || !reason.trim()} style={{ flex: 1, background: '#ff6b6b', color: '#fff' }}>
+              {loading ? 'Отправка...' : 'Отправить жалобу'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SpoilerImage({ src, spoiler }) {
   const [revealed, setRevealed] = useState(false);
   if (!spoiler || revealed) {
@@ -171,6 +241,7 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
   const [spoiler, setSpoiler] = useState(false); // { src, type }
   const [showPicker, setShowPicker] = useState(false);
@@ -314,9 +385,14 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
           </button>
         )}
         {!isOwner && (
-          <button className={`ch-sub-btn ${channel.is_subscribed ? 'active' : ''}`} onClick={handleSubscribe}>
-            {channel.is_subscribed ? 'Отписаться' : 'Подписаться'}
-          </button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className={`ch-sub-btn ${channel.is_subscribed ? 'active' : ''}`} onClick={handleSubscribe}>
+              {channel.is_subscribed ? 'Отписаться' : 'Подписаться'}
+            </button>
+            <button className="ch-sub-btn" onClick={() => setShowReport(true)} title="Пожаловаться" style={{ padding: '0.4rem 0.6rem' }}>
+              <Flag size={14} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -428,6 +504,10 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
           onClose={() => setShowEdit(false)}
           onSave={(updated) => setChannel(updated)}
         />
+      )}
+
+      {showReport && (
+        <ReportModal targetType="channel" targetId={channel.id} onClose={() => setShowReport(false)} />
       )}
     </div>
   );

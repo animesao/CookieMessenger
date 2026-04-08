@@ -290,6 +290,20 @@ db.exec(`
   )
 `);
 
+// Reports (жалобы)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL,
+    target_type TEXT NOT NULL, -- 'channel' | 'group' | 'post' | 'user'
+    target_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', -- pending | reviewed | dismissed
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+
 // VIP features
 migrate('animated_name', 'TEXT'); // gradient CSS for animated name
 migrate('profile_music', 'TEXT'); // URL to music file

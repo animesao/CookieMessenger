@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users, Plus, Search, X, Send, ArrowLeft, Lock, Globe,
   LogOut, Trash2, Settings, UserPlus, Crown, Shield, Check,
-  Image, Video, Smile,
+  Image, Video, Smile, Flag,
 } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 
@@ -101,12 +101,73 @@ function CreateGroupModal({ onClose, onCreated, user }) {
   );
 }
 
+function ReportModal({ targetType, targetId, onClose }) {
+  const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+  const REASONS = ['Спам', 'Мошенничество', 'Оскорбительный контент', 'Нарушение правил', 'Другое'];
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return;
+    setLoading(true);
+    const res = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, reason }),
+    });
+    const data = await res.json();
+    if (res.ok) setDone(true);
+    else setError(data.error || 'Ошибка');
+    setLoading(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Пожаловаться</h3>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          {done ? (
+            <div style={{ textAlign: 'center', padding: '1rem', color: '#69db7c' }}>✓ Жалоба отправлена</div>
+          ) : (
+            <>
+              {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+                {REASONS.map(r => (
+                  <button key={r} type="button" onClick={() => setReason(r)}
+                    style={{ padding: '0.6rem 0.9rem', borderRadius: 8, border: `1px solid ${reason === r ? '#fff' : '#222'}`, background: reason === r ? '#1e1e1e' : 'transparent', color: reason === r ? '#fff' : '#666', cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem' }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Подробнее..." maxLength={500} rows={3}
+                style={{ width: '100%', padding: '0.65rem', background: '#0a0a0a', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', resize: 'none' }} />
+            </>
+          )}
+        </div>
+        {!done && (
+          <div className="modal-footer">
+            <button className="btn-back" onClick={onClose}>Отмена</button>
+            <button className="btn-next" onClick={handleSubmit} disabled={loading || !reason.trim()} style={{ flex: 1, background: '#ff6b6b', color: '#fff' }}>
+              {loading ? 'Отправка...' : 'Отправить'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
   const [group, setGroup] = useState(initialGroup);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [tab, setTab] = useState('chat'); // chat | members | settings
+  const [showReport, setShowReport] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
   const [inviteSearch, setInviteSearch] = useState('');
@@ -213,6 +274,7 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
           <button className={`grp-tab-btn ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')} title="Чат"><Send size={15} /></button>
           <button className={`grp-tab-btn ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')} title="Участники"><Users size={15} /></button>
           {isAdmin && <button className={`grp-tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')} title="Настройки"><Settings size={15} /></button>}
+          {!isAdmin && <button className="grp-tab-btn" onClick={() => setShowReport(true)} title="Пожаловаться"><Flag size={15} /></button>}
         </div>
       </div>
 
@@ -350,6 +412,10 @@ function GroupSettings({ group, user, onUpdate, onDelete }) {
         </button>
       )}
     </div>
+
+    {showReport && (
+      <ReportModal targetType="group" targetId={group.id} onClose={() => setShowReport(false)} />
+    )}
   );
 }
 
