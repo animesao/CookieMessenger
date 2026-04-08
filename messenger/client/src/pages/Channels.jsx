@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye } from 'lucide-react';
+import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile } from 'lucide-react';
+import EmojiPicker from '../components/EmojiPicker';
 
 function api(path, opts = {}) {
   return fetch(path, {
@@ -14,6 +15,14 @@ function timeAgo(str) {
   if (diff < 3600) return `${Math.floor(diff / 60)} мин.`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} ч.`;
   return `${Math.floor(diff / 86400)} дн.`;
+}
+
+function fileToBase64(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.readAsDataURL(file);
+  });
 }
 
 function ChannelAvatar({ channel, size = 44 }) {
@@ -38,9 +47,20 @@ function ChannelFormModal({ initial, onClose, onSave, title }) {
   const [username, setUsername] = useState(initial?.username || '');
   const [description, setDescription] = useState(initial?.description || '');
   const [type, setType] = useState(initial?.type || 'public');
+  const [avatar, setAvatar] = useState(initial?.avatar || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const avatarRef = useRef();
   const isEdit = !!initial;
+
+  const handleAvatar = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('Аватарка не более 5MB'); return; }
+    const b64 = await fileToBase64(file);
+    setAvatar(b64);
+    e.target.value = '';
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -49,8 +69,8 @@ function ChannelFormModal({ initial, onClose, onSave, title }) {
     setError('');
     try {
       const body = isEdit
-        ? { name, description, type }
-        : { name, username, description, type };
+        ? { name, description, type, avatar }
+        : { name, username, description, type, avatar };
       const res = await api(isEdit ? `/api/channels/${initial.id}` : '/api/channels', {
         method: isEdit ? 'PUT' : 'POST',
         body: JSON.stringify(body),
@@ -71,6 +91,26 @@ function ChannelFormModal({ initial, onClose, onSave, title }) {
         </div>
         <div className="modal-body">
           {error && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+          {/* Avatar upload */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
+            <div
+              onClick={() => avatarRef.current.click()}
+              style={{
+                width: 80, height: 80, borderRadius: '50%', cursor: 'pointer',
+                backgroundImage: avatar ? `url(${avatar})` : undefined,
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                background: avatar ? undefined : '#1a1a1a',
+                border: '2px dashed #333', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', color: '#555', fontSize: '0.75rem',
+                flexDirection: 'column', gap: 4, transition: 'border-color 0.2s',
+              }}
+            >
+              {!avatar && <><Image size={20} /><span>Аватарка</span></>}
+            </div>
+            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={handleAvatar} />
+          </div>
+
           <div className="setup-field">
             <label>Название</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Мой канал" maxLength={64} />
@@ -116,7 +156,12 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState(null); // { src, type }
+  const [showPicker, setShowPicker] = useState(false);
+  const [showDesc, setShowDesc] = useState(false);
   const bottomRef = useRef();
+  const fileRef = useRef();
+  const pickerRef = useRef();
   const isOwner = channel.owner_id === user.id;
 
   const loadPosts = useCallback(async () => {
@@ -129,6 +174,14 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
   }, [channel.id]);
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!showPicker) return;
+    const handler = (e) => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPicker]);
 
   // Real-time WS events
   useEffect(() => {
@@ -143,7 +196,7 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
     const onReaction = (e) => {
       if (e.detail.channelId !== channel.id) return;
       setPosts(prev => prev.map(p => p.id === e.detail.postId
-        ? { ...p, reactions_count: e.detail.count, my_reaction: e.detail.reacted && e.detail.emoji === '👍' ? e.detail.emoji : (e.detail.reacted ? p.my_reaction : null) }
+        ? { ...p, reactions_count: e.detail.count, my_reaction: e.detail.reacted ? e.detail.emoji : null }
         : p
       ));
     };
@@ -163,18 +216,16 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
     };
   }, [channel.id]);
 
-  // Register view when post appears
+  // Register views
   const registeredViews = useRef(new Set());
   useEffect(() => {
-    if (!posts.length) return;
     posts.forEach(post => {
       if (!registeredViews.current.has(post.id)) {
         registeredViews.current.add(post.id);
         api(`/api/channels/${channel.id}/posts/${post.id}/view`, { method: 'POST' })
           .then(r => r.ok ? r.json() : null)
-          .then(data => {
-            if (data) setPosts(prev => prev.map(p => p.id === post.id ? { ...p, views: data.views } : p));
-          }).catch(() => {});
+          .then(data => { if (data) setPosts(prev => prev.map(p => p.id === post.id ? { ...p, views: data.views } : p)); })
+          .catch(() => {});
       }
     });
   }, [posts.length, channel.id]);
@@ -187,14 +238,28 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
     }
   };
 
+  const handleMediaPick = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return;
+    const src = await fileToBase64(file);
+    const type = file.type.startsWith('image/') ? 'image' : 'video';
+    setMediaPreview({ src, type });
+    e.target.value = '';
+  };
+
   const handlePost = async () => {
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !mediaPreview) || sending) return;
     setSending(true);
-    const res = await api(`/api/channels/${channel.id}/posts`, { method: 'POST', body: JSON.stringify({ content: text.trim() }) });
+    const res = await api(`/api/channels/${channel.id}/posts`, {
+      method: 'POST',
+      body: JSON.stringify({ content: text.trim() || null, media: mediaPreview?.src || null, media_type: mediaPreview?.type || null }),
+    });
     if (res.ok) {
       const post = await res.json();
       setPosts(prev => [post, ...prev]);
       setText('');
+      setMediaPreview(null);
     }
     setSending(false);
   };
@@ -208,11 +273,7 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
     const res = await api(`/api/channels/${channel.id}/posts/${postId}/react`, { method: 'POST', body: JSON.stringify({ emoji: '👍' }) });
     if (res.ok) {
       const data = await res.json();
-      setPosts(prev => prev.map(p => p.id === postId ? {
-        ...p,
-        reactions_count: data.count,
-        my_reaction: data.reacted ? data.emoji : null,
-      } : p));
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, reactions_count: data.count, my_reaction: data.reacted ? data.emoji : null } : p));
     }
   };
 
@@ -220,8 +281,10 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
     <div className="ch-view">
       <div className="ch-view-header">
         <button className="msg-back-btn" onClick={onBack}><ArrowLeft size={16} /></button>
-        <ChannelAvatar channel={channel} size={36} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div onClick={() => channel.description && setShowDesc(v => !v)} style={{ cursor: channel.description ? 'pointer' : 'default' }}>
+          <ChannelAvatar channel={channel} size={36} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }} onClick={() => channel.description && setShowDesc(v => !v)} style={{ flex: 1, minWidth: 0, cursor: channel.description ? 'pointer' : 'default' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="msg-chat-name">{channel.name}</span>
             {channel.type === 'private' ? <Lock size={12} style={{ color: '#666' }} /> : <Globe size={12} style={{ color: '#666' }} />}
@@ -239,6 +302,13 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
           </button>
         )}
       </div>
+
+      {/* Description panel */}
+      {showDesc && channel.description && (
+        <div style={{ padding: '0.75rem 1rem', background: '#111', borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', color: '#888', lineHeight: 1.5 }}>
+          {channel.description}
+        </div>
+      )}
 
       <div className="ch-posts">
         {loading && <div style={{ padding: '2rem', textAlign: 'center', color: '#444' }}>Загрузка...</div>}
@@ -263,7 +333,15 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
               )}
             </div>
             {post.content && <p className="ch-post-content">{post.content}</p>}
-            {post.media && post.media_type === 'image' && <img src={post.media} alt="media" className="ch-post-media" />}
+            {post.media && post.media_type === 'image' && (
+              <img src={post.media} alt="media" className="ch-post-media" />
+            )}
+            {post.media && post.media_type === 'gif' && (
+              <img src={post.media} alt="gif" className="ch-post-media" style={{ borderRadius: 8 }} />
+            )}
+            {post.media && post.media_type === 'video' && (
+              <video src={post.media} controls className="ch-post-media" />
+            )}
             <div className="ch-post-footer">
               <button className={`ch-react-btn ${post.my_reaction ? 'active' : ''}`} onClick={() => handleReact(post.id)}>
                 <Heart size={14} fill={post.my_reaction ? 'currentColor' : 'none'} />
@@ -277,18 +355,49 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
       </div>
 
       {isOwner && (
-        <div className="ch-input-area">
-          <input
-            className="msg-input"
-            placeholder="Написать пост..."
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handlePost()}
-            maxLength={4000}
-          />
-          <button className="msg-send-btn" onClick={handlePost} disabled={!text.trim() || sending}>
-            <Send size={16} />
-          </button>
+        <div className="ch-input-area" style={{ flexDirection: 'column', gap: 0, padding: 0 }}>
+          {/* Media preview */}
+          {mediaPreview && (
+            <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid #1a1a1a' }}>
+              {mediaPreview.type === 'image'
+                ? <img src={mediaPreview.src} alt="preview" style={{ height: 60, borderRadius: 6, objectFit: 'cover' }} />
+                : <video src={mediaPreview.src} style={{ height: 60, borderRadius: 6 }} />
+              }
+              <button onClick={() => setMediaPreview(null)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer' }}><X size={16} /></button>
+            </div>
+          )}
+
+          {/* Emoji picker */}
+          {showPicker && (
+            <div ref={pickerRef} style={{ position: 'absolute', bottom: '100%', left: 0, zIndex: 100 }}>
+              <EmojiPicker
+                onEmoji={(e) => setText(t => t + e)}
+                onSticker={(e) => setText(t => t + e)}
+                onGif={(gif) => { setMediaPreview({ src: gif.url, type: 'gif' }); setShowPicker(false); }}
+              />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
+            <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={handleMediaPick} />
+            <button className="msg-media-btn" onClick={() => fileRef.current.click()} title="Фото/видео">
+              <Image size={18} />
+            </button>
+            <button className="msg-media-btn" onClick={() => setShowPicker(v => !v)} title="Эмодзи/GIF">
+              <Smile size={18} />
+            </button>
+            <input
+              className="msg-input"
+              placeholder="Написать пост..."
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handlePost()}
+              maxLength={4000}
+            />
+            <button className="msg-send-btn" onClick={handlePost} disabled={(!text.trim() && !mediaPreview) || sending}>
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -320,7 +429,6 @@ export default function Channels({ user }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Real-time: new post notification → refresh my channels list
   useEffect(() => {
     const handler = () => load();
     window.addEventListener('ws_channel_post', handler);
