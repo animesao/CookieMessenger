@@ -111,7 +111,7 @@ function ReportModal({ targetType, targetId, onClose }) {
   const handleSubmit = async () => {
     if (!reason.trim()) return;
     setLoading(true);
-    const res = await fetch('/api/report', {
+    const res = await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
       body: JSON.stringify({ target_type: targetType, target_id: targetId, reason }),
