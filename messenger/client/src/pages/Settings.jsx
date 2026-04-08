@@ -404,7 +404,7 @@ export default function Settings({ user, onUpdate, onLogout }) {
         )}
       </Section>
 
-      <p className="settings-version">RLC v1.0.0</p>
+      <p className="settings-version">RLC v1.1.0</p>
     </div>
   );
 }
