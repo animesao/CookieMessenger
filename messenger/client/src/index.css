@@ -147,9 +147,16 @@ body::after {
 .password-toggle {
   position: absolute; right: 0.9rem; top: 50%; transform: translateY(-50%);
   background: none; border: none; color: #444; cursor: pointer;
-  padding: 0; display: flex; align-items: center; transition: color 0.2s;
+  padding: 0.2rem; display: flex; align-items: center; transition: color 0.2s;
+  z-index: 1;
 }
 .password-toggle:hover { color: #888; }
+
+/* Ensure password input has space for the eye icon */
+.input-wrapper input[type="password"],
+.input-wrapper input[type="text"] {
+  padding-right: 2.8rem;
+}
 
 .btn-submit {
   width: 100%; padding: 0.8rem;
@@ -4970,7 +4977,7 @@ body::after {
   /* Prevent zoom on input focus (iOS) — 16px minimum */
   input[type="text"], input[type="email"], input[type="password"],
   input[type="search"], input[type="url"], textarea {
-    font-size: max(16px, 1em) !important;
+    font-size: max(16px, 0.95rem) !important;
   }
 
   /* Music player on mobile */
