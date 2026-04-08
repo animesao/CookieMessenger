@@ -21,7 +21,7 @@ router.post('/', auth, (req, res) => {
 
     // Prevent duplicate pending reports from same user
     const existing = db.prepare(
-      'SELECT id FROM reports WHERE reporter_id = ? AND target_type = ? AND target_id = ? AND status = "pending"'
+      "SELECT id FROM reports WHERE reporter_id = ? AND target_type = ? AND target_id = ? AND status = 'pending'"
     ).get(req.user.id, target_type, tid);
 
     if (existing)
