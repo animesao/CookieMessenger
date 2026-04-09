@@ -5478,6 +5478,23 @@ body::after {
   .profile-content--full .messages-page {
     height: 100%;
   }
+
+  /* Groups and Channels inside community tab on mobile */
+  .profile-content:has(.groups-page),
+  .profile-content:has(.ch-page) {
+    padding: 0 !important;
+    height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .profile-content:has(.groups-page) .groups-page,
+  .profile-content:has(.ch-page) .ch-page {
+    height: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -5620,7 +5637,8 @@ body::after {
     position: relative !important;
     bottom: auto !important;
     flex-shrink: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    /* no extra padding — bottom nav is outside this container */
+    padding-bottom: 4px;
   }
 }
 .grp-members {
@@ -6120,4 +6138,46 @@ body::after {
 .community-subnav-btn.active {
   border-color: currentColor;
   font-weight: 600;
+}
+
+/* ── Community tab full-height content (groups/channels) on mobile ── */
+.community-full-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.community-full-content .groups-page,
+.community-full-content .ch-page {
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  /* Community tab needs to fill screen minus bottom nav */
+  .profile-main:has(.community-subnav) {
+    padding-bottom: 0 !important;
+    height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .profile-main:has(.community-subnav) .profile-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0.75rem 0;
+  }
+
+  .profile-main:has(.community-subnav) .community-full-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    margin: 0 -0.75rem;
+  }
 }

@@ -976,8 +976,16 @@ export default function Profile({ user, onUpdate, onLogout }) {
             {communitySubTab === 'friends' && (
               <Friends user={user} onOpenChat={(targetUser) => { setChatTarget(targetUser); switchTab('messages'); }} />
             )}
-            {communitySubTab === 'groups' && <Groups user={user} />}
-            {communitySubTab === 'channels' && <Channels user={user} />}
+            {communitySubTab === 'groups' && (
+              <div className="community-full-content">
+                <Groups user={user} />
+              </div>
+            )}
+            {communitySubTab === 'channels' && (
+              <div className="community-full-content">
+                <Channels user={user} />
+              </div>
+            )}
             {communitySubTab === 'bookmarks' && (
               <Bookmarks user={user} onUserClick={(username) => navigate(`/profile/${username}`)} />
             )}
