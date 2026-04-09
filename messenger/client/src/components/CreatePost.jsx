@@ -31,6 +31,9 @@ export default function CreatePost({ user, onPost }) {
   const handleContentChange = (e) => {
     const val = e.target.value;
     setContent(val);
+    // Auto-resize textarea
+    e.target.style.height = 'auto';
+    e.target.style.height = e.target.scrollHeight + 'px';
 
     const cursor = e.target.selectionStart;
     const textBefore = val.slice(0, cursor);
@@ -113,6 +116,8 @@ export default function CreatePost({ user, onPost }) {
         onPost(data);
         setContent(''); setMedia(null); setMediaPreview(null);
         setType('text'); setPollOptions(['', '']);
+        // Reset textarea height
+        if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       }
     } finally { setLoading(false); }
   };
@@ -137,6 +142,7 @@ export default function CreatePost({ user, onPost }) {
             onChange={handleContentChange}
             rows={2}
             maxLength={2000}
+            style={{ overflow: 'hidden', resize: 'none' }}
           />
 
           {/* Mention dropdown */}
