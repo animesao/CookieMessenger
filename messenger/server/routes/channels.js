@@ -162,6 +162,14 @@ router.post('/:id/subscribe', auth, (req, res) => {
   if (!channel) return res.status(404).json({ error: 'Канал не найден' });
   if (channel.type === 'private') return res.status(403).json({ error: 'Нельзя подписаться на приватный канал' });
 
+  // Check if banned
+  db.prepare(`CREATE TABLE IF NOT EXISTS channel_bans (
+    channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (channel_id, user_id)
+  )`).run();
+  const banned = db.prepare('SELECT 1 FROM channel_bans WHERE channel_id = ? AND user_id = ?').get(channel.id, req.user.id);
+  if (banned) return res.status(403).json({ error: 'Вы заблокированы в этом канале' });
+
   const already = isSubscribed(channel.id, req.user.id);
   if (already) {
     db.prepare('DELETE FROM channel_subscribers WHERE channel_id = ? AND user_id = ?').run(channel.id, req.user.id);
@@ -282,6 +290,73 @@ router.delete('/:id', auth, (req, res) => {
   if (!channel) return res.status(404).json({ error: 'Канал не найден' });
   if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
   db.prepare('DELETE FROM channels WHERE id = ?').run(channel.id);
+  ws.broadcast('channel_deleted', { channelId: channel.id });
+  res.json({ ok: true });
+});
+
+// ── GET /api/channels/:id/subscribers — list subscribers (owner only) ─────────
+router.get('/:id/subscribers', auth, (req, res) => {
+  const channel = getChannel(req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
+
+  const subs = db.prepare(`
+    SELECT u.id, u.username, u.display_name, u.avatar, u.accent_color, u.verified,
+      cs.joined_at,
+      (SELECT 1 FROM channel_bans WHERE channel_id = ? AND user_id = u.id) as is_banned
+    FROM channel_subscribers cs
+    JOIN users u ON u.id = cs.user_id
+    WHERE cs.channel_id = ? AND u.id != ?
+    ORDER BY cs.joined_at DESC
+  `).all(channel.id, channel.id, channel.owner_id);
+
+  res.json(subs);
+});
+
+// ── DELETE /api/channels/:id/subscribers/:userId — kick subscriber ────────────
+router.delete('/:id/subscribers/:userId', auth, (req, res) => {
+  const channel = getChannel(req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
+
+  const targetId = parseInt(req.params.userId);
+  if (targetId === channel.owner_id) return res.status(400).json({ error: 'Нельзя выгнать владельца' });
+
+  db.prepare('DELETE FROM channel_subscribers WHERE channel_id = ? AND user_id = ?').run(channel.id, targetId);
+  ws.sendTo(targetId, 'channel_kicked', { channelId: channel.id, channelName: channel.name });
+  res.json({ ok: true });
+});
+
+// ── POST /api/channels/:id/ban/:userId — ban user ─────────────────────────────
+router.post('/:id/ban/:userId', auth, (req, res) => {
+  const channel = getChannel(req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
+
+  const targetId = parseInt(req.params.userId);
+  if (targetId === channel.owner_id) return res.status(400).json({ error: 'Нельзя забанить владельца' });
+
+  // Ensure channel_bans table exists
+  db.prepare(`CREATE TABLE IF NOT EXISTS channel_bans (
+    channel_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (channel_id, user_id)
+  )`).run();
+
+  db.prepare('INSERT OR IGNORE INTO channel_bans (channel_id, user_id) VALUES (?, ?)').run(channel.id, targetId);
+  db.prepare('DELETE FROM channel_subscribers WHERE channel_id = ? AND user_id = ?').run(channel.id, targetId);
+  ws.sendTo(targetId, 'channel_banned', { channelId: channel.id, channelName: channel.name });
+  res.json({ ok: true });
+});
+
+// ── DELETE /api/channels/:id/ban/:userId — unban user ────────────────────────
+router.delete('/:id/ban/:userId', auth, (req, res) => {
+  const channel = getChannel(req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+  if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
+
+  db.prepare('DELETE FROM channel_bans WHERE channel_id = ? AND user_id = ?').run(channel.id, parseInt(req.params.userId));
   res.json({ ok: true });
 });
 

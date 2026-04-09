@@ -242,14 +242,39 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
   const [sending, setSending] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showSubscribers, setShowSubscribers] = useState(false);
+  const [subscribers, setSubscribers] = useState([]);
+  const [subsLoading, setSubsLoading] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
-  const [spoiler, setSpoiler] = useState(false); // { src, type }
+  const [spoiler, setSpoiler] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showDesc, setShowDesc] = useState(false);
   const bottomRef = useRef();
   const fileRef = useRef();
   const pickerRef = useRef();
   const isOwner = channel.owner_id === user.id;
+
+  const loadSubscribers = async () => {
+    setSubsLoading(true);
+    const res = await api(`/api/channels/${channel.id}/subscribers`);
+    if (res.ok) setSubscribers(await res.json());
+    setSubsLoading(false);
+  };
+
+  const handleKick = async (userId) => {
+    const res = await api(`/api/channels/${channel.id}/subscribers/${userId}`, { method: 'DELETE' });
+    if (res.ok) setSubscribers(prev => prev.filter(s => s.id !== userId));
+  };
+
+  const handleBan = async (userId) => {
+    const res = await api(`/api/channels/${channel.id}/ban/${userId}`, { method: 'POST' });
+    if (res.ok) setSubscribers(prev => prev.map(s => s.id === userId ? { ...s, is_banned: 1 } : s));
+  };
+
+  const handleUnban = async (userId) => {
+    const res = await api(`/api/channels/${channel.id}/ban/${userId}`, { method: 'DELETE' });
+    if (res.ok) setSubscribers(prev => prev.map(s => s.id === userId ? { ...s, is_banned: 0 } : s));
+  };
 
   const loadPosts = useCallback(async () => {
     const res = await api(`/api/channels/${channel.id}/posts`);
@@ -291,15 +316,23 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
       if (e.detail.id !== channel.id) return;
       setChannel(e.detail);
     };
+    const onKicked = (e) => {
+      if (e.detail.channelId !== channel.id) return;
+      onBack(); // kicked from this channel — go back
+    };
     window.addEventListener('ws_channel_post', onPost);
     window.addEventListener('ws_channel_post_deleted', onDeleted);
     window.addEventListener('ws_channel_reaction', onReaction);
     window.addEventListener('ws_channel_updated', onUpdated);
+    window.addEventListener('ws_channel_kicked', onKicked);
+    window.addEventListener('ws_channel_banned', onKicked);
     return () => {
       window.removeEventListener('ws_channel_post', onPost);
       window.removeEventListener('ws_channel_post_deleted', onDeleted);
       window.removeEventListener('ws_channel_reaction', onReaction);
       window.removeEventListener('ws_channel_updated', onUpdated);
+      window.removeEventListener('ws_channel_kicked', onKicked);
+      window.removeEventListener('ws_channel_banned', onKicked);
     };
   }, [channel.id]);
 
@@ -387,6 +420,9 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
             }} title="Скопировать ссылку" style={{ padding: '0.4rem 0.6rem' }}>
               <Link2 size={14} />
             </button>
+            <button className="ch-sub-btn" onClick={() => { setShowSubscribers(v => !v); if (!showSubscribers) loadSubscribers(); }} title="Подписчики">
+              <Users size={14} />
+            </button>
             <button className="ch-sub-btn" onClick={() => setShowEdit(true)} title="Редактировать">
               <Pencil size={14} />
             </button>
@@ -414,6 +450,52 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
       {showDesc && channel.description && (
         <div style={{ padding: '0.75rem 1rem', background: '#111', borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', color: '#888', lineHeight: 1.5 }}>
           {channel.description}
+        </div>
+      )}
+
+      {/* Subscribers management panel (owner only) */}
+      {isOwner && showSubscribers && (
+        <div style={{ background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', maxHeight: 320, overflowY: 'auto' }}>
+          <div style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#444', borderBottom: '1px solid #1a1a1a' }}>
+            Подписчики ({subscribers.length})
+          </div>
+          {subsLoading && <div style={{ padding: '1rem', color: '#444', fontSize: '0.85rem', textAlign: 'center' }}>Загрузка...</div>}
+          {!subsLoading && subscribers.length === 0 && (
+            <div style={{ padding: '1rem', color: '#444', fontSize: '0.85rem', textAlign: 'center' }}>Нет подписчиков</div>
+          )}
+          {subscribers.map(sub => (
+            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 1rem', borderBottom: '1px solid #111' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', backgroundImage: sub.avatar ? `url(${sub.avatar})` : 'none', backgroundColor: '#1a1a1a', backgroundSize: 'cover', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#888' }}>
+                {!sub.avatar && (sub.display_name || sub.username)[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.85rem', color: sub.is_banned ? '#ff6b6b' : '#ccc', fontWeight: 500 }}>
+                  {sub.display_name || sub.username}
+                  {sub.is_banned ? <span style={{ fontSize: '0.7rem', color: '#ff6b6b', marginLeft: 6 }}>заблокирован</span> : null}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#444' }}>@{sub.username}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {!sub.is_banned ? (
+                  <>
+                    <button onClick={() => handleKick(sub.id)} title="Выгнать"
+                      style={{ padding: '0.3rem 0.5rem', background: 'transparent', border: '1px solid #333', borderRadius: 6, color: '#888', cursor: 'pointer', fontSize: '0.72rem' }}>
+                      Выгнать
+                    </button>
+                    <button onClick={() => handleBan(sub.id)} title="Заблокировать"
+                      style={{ padding: '0.3rem 0.5rem', background: 'transparent', border: '1px solid #ff6b6b44', borderRadius: 6, color: '#ff6b6b', cursor: 'pointer', fontSize: '0.72rem' }}>
+                      Бан
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => handleUnban(sub.id)} title="Разблокировать"
+                    style={{ padding: '0.3rem 0.5rem', background: 'transparent', border: '1px solid #69db7c44', borderRadius: 6, color: '#69db7c', cursor: 'pointer', fontSize: '0.72rem' }}>
+                    Разбан
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
