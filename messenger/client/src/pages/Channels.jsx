@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile, Flag, Link2 } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 
@@ -610,6 +611,7 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
 }
 
 export default function Channels({ user }) {
+  const location = useLocation();
   const [channels, setChannels] = useState({ publicChannels: [], myChannels: [] });
   const [activeChannel, setActiveChannel] = useState(null);
   const [tab, setTab] = useState('all');
@@ -618,12 +620,26 @@ export default function Channels({ user }) {
   const [searching, setSearching] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
+  const openChannelUsername = location.state?.openChannel;
+
   const load = useCallback(async () => {
     const res = await api('/api/channels');
     if (res.ok) setChannels(await res.json());
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-open channel from deep link after channels are loaded
+  useEffect(() => {
+    if (!openChannelUsername || activeChannel) return;
+    api(`/api/channels/search?q=${encodeURIComponent(openChannelUsername)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(results => {
+        const found = results.find(c => c.username.toLowerCase() === openChannelUsername.toLowerCase());
+        if (found) setActiveChannel(found);
+      })
+      .catch(() => {});
+  }, [openChannelUsername]);
 
   useEffect(() => {
     const handler = () => load();

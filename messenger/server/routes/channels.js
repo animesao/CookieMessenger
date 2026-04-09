@@ -247,9 +247,21 @@ router.delete('/:id/posts/:postId', auth, (req, res) => {
 });
 
 // ── POST /api/channels/:id/posts/:postId/view — increment view ────────────────
+const channelViewCooldown = new Map();
 router.post('/:id/posts/:postId/view', auth, (req, res) => {
   const postId = parseInt(req.params.postId);
   if (isNaN(postId)) return res.status(400).json({ error: 'Неверный ID' });
+
+  // Rate limit: 1 view per user per post per 24h (in-memory cooldown)
+  const key = `${req.user.id}:${postId}`;
+  const now = Date.now();
+  const last = channelViewCooldown.get(key);
+  if (last && now - last < 24 * 60 * 60 * 1000) {
+    const post = db.prepare('SELECT views FROM channel_posts WHERE id = ?').get(postId);
+    return res.json({ views: post?.views || 0 });
+  }
+  channelViewCooldown.set(key, now);
+
   db.prepare('UPDATE channel_posts SET views = views + 1 WHERE id = ? AND channel_id = ?').run(postId, req.params.id);
   const post = db.prepare('SELECT views FROM channel_posts WHERE id = ?').get(postId);
   res.json({ views: post?.views || 0 });

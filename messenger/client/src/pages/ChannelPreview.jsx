@@ -81,7 +81,7 @@ export default function ChannelPreview() {
 
           {/* CTA button */}
           {isLoggedIn
-            ? <button className="cprev-open-btn" onClick={() => navigate('/channels')}>
+            ? <button className="cprev-open-btn" onClick={() => navigate('/channels', { state: { openChannel: channel.username } })}>
                 Открыть в RLC
               </button>
             : <div className="cprev-cta-group">
