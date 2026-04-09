@@ -392,6 +392,9 @@ body::after {
 .sidebar-item:hover { background: #161616; color: #aaa; }
 .sidebar-item.active { background: #161616; font-weight: 500; }
 
+/* Mobile-only item hidden on desktop */
+.sidebar-item--mobile-only { display: none; }
+
 .sidebar-logout {
   display: flex; align-items: center; gap: 0.65rem;
   padding: 0.6rem 0.75rem; border-radius: 8px; border: none;
@@ -4726,6 +4729,20 @@ body::after {
   }
 
   .sidebar-footer { display: none; }
+
+  /* Mobile nav: hide desktop-only items, show compact ones */
+  .sidebar-item--mobile-only { display: flex; }
+  .sidebar-logout { display: none; }
+
+  /* Hide: friends, messages, groups, channels, bookmarks, admin — replaced by "Чат" */
+  [data-nav="friends"],
+  [data-nav="messages"],
+  [data-nav="groups"],
+  [data-nav="channels"],
+  [data-nav="bookmarks"],
+  [data-nav="admin"] {
+    display: none;
+  }
 
   .sidebar-badge {
     font-size: 0.55rem;

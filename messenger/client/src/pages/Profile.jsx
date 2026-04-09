@@ -502,43 +502,52 @@ export default function Profile({ user, onUpdate, onLogout }) {
         </div>
 
         <nav className="sidebar-nav">
-          <button className={`sidebar-item ${tab === 'profile' ? 'active' : ''}`}
+          <button data-nav="profile" className={`sidebar-item ${tab === 'profile' ? 'active' : ''}`}
             onClick={() => switchTab('profile')} style={tab === 'profile' ? { color: accent } : {}}>
             <User size={17} /> Профиль
           </button>
-          <button className={`sidebar-item ${tab === 'feed' ? 'active' : ''}`}
+          <button data-nav="feed" className={`sidebar-item ${tab === 'feed' ? 'active' : ''}`}
             onClick={() => switchTab('feed')} style={tab === 'feed' ? { color: accent } : {}}>
             <Rss size={17} /> Лента
           </button>
-          <button className={`sidebar-item ${tab === 'friends' ? 'active' : ''}`}
+          <button data-nav="friends" className={`sidebar-item ${tab === 'friends' ? 'active' : ''}`}
             onClick={() => { switchTab('friends'); setPendingFriends(0); }} style={tab === 'friends' ? { color: accent } : {}}>
             <Users size={17} /> Друзья
             {pendingFriends > 0 && <span className="sidebar-badge">{pendingFriends}</span>}
           </button>
-          <button className={`sidebar-item ${tab === 'messages' ? 'active' : ''}`}
+          {/* On mobile: "Чат" button merges messages+friends+groups+channels */}
+          <button data-nav="chat-mobile" className={`sidebar-item sidebar-item--mobile-only ${['messages','friends','groups','channels'].includes(tab) ? 'active' : ''}`}
+            onClick={() => { switchTab('messages'); setUnreadMessages(0); setUnreadGroups(0); setPendingFriends(0); }}
+            style={['messages','friends','groups','channels'].includes(tab) ? { color: accent } : {}}>
+            <MessageSquare size={17} /> Чат
+            {(unreadMessages + unreadGroups + pendingFriends) > 0 && (
+              <span className="sidebar-badge">{unreadMessages + unreadGroups + pendingFriends}</span>
+            )}
+          </button>
+          <button data-nav="messages" className={`sidebar-item ${tab === 'messages' ? 'active' : ''}`}
             onClick={() => { switchTab('messages'); setUnreadMessages(0); }} style={tab === 'messages' ? { color: accent } : {}}>
             <MessageSquare size={17} /> Сообщения
             {unreadMessages > 0 && <span className="sidebar-badge">{unreadMessages}</span>}
           </button>
-          <button className={`sidebar-item ${tab === 'groups' ? 'active' : ''}`}
+          <button data-nav="groups" className={`sidebar-item ${tab === 'groups' ? 'active' : ''}`}
             onClick={() => { switchTab('groups'); setUnreadGroups(0); }} style={tab === 'groups' ? { color: accent } : {}}>
             <UsersRound size={17} /> Группы
             {unreadGroups > 0 && <span className="sidebar-badge">{unreadGroups}</span>}
           </button>
-          <button className={`sidebar-item ${tab === 'channels' ? 'active' : ''}`}
+          <button data-nav="channels" className={`sidebar-item ${tab === 'channels' ? 'active' : ''}`}
             onClick={() => switchTab('channels')} style={tab === 'channels' ? { color: accent } : {}}>
             <Rss size={17} /> Каналы
           </button>
-          <button className={`sidebar-item ${tab === 'bookmarks' ? 'active' : ''}`}
+          <button data-nav="bookmarks" className={`sidebar-item ${tab === 'bookmarks' ? 'active' : ''}`}
             onClick={() => switchTab('bookmarks')} style={tab === 'bookmarks' ? { color: accent } : {}}>
             <Bookmark size={17} /> Закладки
           </button>
-          <button className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
+          <button data-nav="settings" className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => switchTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
             <Shield size={17} /> Настройки
           </button>
           {(user.email === 'yamekel0@gmail.com' || isAdmin) && (
-            <button className={`sidebar-item ${tab === 'admin' ? 'active' : ''}`}
+            <button data-nav="admin" className={`sidebar-item ${tab === 'admin' ? 'active' : ''}`}
               onClick={() => switchTab('admin')} style={tab === 'admin' ? { color: '#ff6b6b' } : { color: '#ff6b6b', opacity: 0.6 }}>
               <ShieldAlert size={17} /> Админ-панель
             </button>
