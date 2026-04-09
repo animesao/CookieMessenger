@@ -86,6 +86,15 @@ router.post('/', auth, validateLengths({ name: 64, username: 32, description: 30
   if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) return res.status(400).json({ error: 'Username: 3-32 символа, только буквы, цифры и _' });
   if (!['public', 'private'].includes(type)) return res.status(400).json({ error: 'Неверный тип' });
 
+  // Check channel creation limit
+  const { getUserPermissions } = require('./roles');
+  const perms = getUserPermissions(req.user.id);
+  const limit = perms.includes('more_groups') ? 10 : 5;
+  const owned = db.prepare('SELECT COUNT(*) as c FROM channels WHERE owner_id = ?').get(req.user.id).c;
+  if (owned >= limit) {
+    return res.status(403).json({ error: `Достигнут лимит каналов (${limit}). ${limit === 5 ? 'VIP позволяет создавать до 10.' : ''}` });
+  }
+
   const existing = db.prepare('SELECT id FROM channels WHERE LOWER(username) = ?').get(username.toLowerCase());
   if (existing) return res.status(409).json({ error: 'Username уже занят' });
 

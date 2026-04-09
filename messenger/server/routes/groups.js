@@ -53,6 +53,15 @@ router.post('/', auth, validateLengths({ name: 50, description: 200 }), (req, re
   if (!name?.trim()) return res.status(400).json({ error: 'Название обязательно' });
   if (!['public', 'private'].includes(type)) return res.status(400).json({ error: 'Неверный тип' });
 
+  // Check group creation limit
+  const { getUserPermissions } = require('./roles');
+  const perms = getUserPermissions(req.user.id);
+  const limit = perms.includes('more_groups') ? 10 : 5;
+  const owned = db.prepare('SELECT COUNT(*) as c FROM groups WHERE owner_id = ?').get(req.user.id).c;
+  if (owned >= limit) {
+    return res.status(403).json({ error: `Достигнут лимит групп (${limit}). ${limit === 5 ? 'VIP позволяет создавать до 10.' : ''}` });
+  }
+
   const result = db.prepare(
     'INSERT INTO groups (name, description, avatar, type, owner_id) VALUES (?, ?, ?, ?, ?)'
   ).run(name.trim(), description || null, avatar || null, type, req.user.id);

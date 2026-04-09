@@ -197,6 +197,7 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
               {profile.display_name || profile.username}
             </h2>
             {profile.verified ? <VerifiedBadge size={18} /> : null}
+            {profile.hasVipBadge ? <span className="vip-badge" title="VIP">⭐</span> : null}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
             <span className="up-username">@{profile.username}</span>

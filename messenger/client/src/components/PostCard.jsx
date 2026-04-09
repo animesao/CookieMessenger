@@ -304,6 +304,7 @@ export default function PostCard({ post, currentUserId, onLike, onDelete, onVote
               {post.display_name || post.username}
             </span>
             {post.verified ? <VerifiedBadge size={13} /> : null}
+            {post.hasVipBadge ? <span className="vip-badge" title="VIP">⭐</span> : null}
           </span>
           <span className="post-username">@{post.username} · {timeAgo(post.created_at)}</span>
         </div>

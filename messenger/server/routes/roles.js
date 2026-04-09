@@ -11,10 +11,10 @@ const ROLE_HIERARCHY = ['user', 'vip', 'moderator', 'admin', 'owner'];
 
 const ROLE_PERMISSIONS = {
   user:      [],
-  vip:       ['animated_name', 'profile_music', 'custom_accent'],
+  vip:       ['animated_name', 'profile_music', 'custom_accent', 'vip_badge', 'more_groups'],
   moderator: ['post_images', 'post_videos', 'post_polls', 'custom_accent', 'delete_posts', 'ban_users'],
   admin:     ['post_images', 'post_videos', 'post_polls', 'custom_accent', 'delete_posts', 'ban_users', 'manage_roles', 'broadcast'],
-  owner:     ['post_images', 'post_videos', 'post_polls', 'custom_accent', 'delete_posts', 'ban_users', 'manage_roles', 'broadcast', 'delete_users', 'owner', 'animated_name', 'profile_music'],
+  owner:     ['post_images', 'post_videos', 'post_polls', 'custom_accent', 'delete_posts', 'ban_users', 'manage_roles', 'broadcast', 'delete_users', 'owner', 'animated_name', 'profile_music', 'vip_badge', 'more_groups'],
 };
 
 const ROLE_LABELS = {

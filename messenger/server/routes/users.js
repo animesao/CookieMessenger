@@ -51,7 +51,12 @@ router.get('/:username', auth, (req, res) => {
   const isFollowing = !!db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND following_id = ?').get(req.user.id, user.id);
   const postsCount = db.prepare('SELECT COUNT(*) as c FROM posts WHERE user_id = ?').get(user.id).c;
 
-  res.json({ ...user, followers, following, isFollowing, postsCount });
+  // Check VIP badge
+  const { getUserPermissions } = require('./roles');
+  const perms = getUserPermissions(user.id);
+  const hasVipBadge = perms.includes('vip_badge');
+
+  res.json({ ...user, followers, following, isFollowing, postsCount, hasVipBadge });
 });
 
 // GET /api/users/:username/posts
