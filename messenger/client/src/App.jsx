@@ -8,6 +8,7 @@ import Status from './pages/Status';
 import Cookies from './pages/Cookies';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import ChannelPreview from './pages/ChannelPreview';
 import { wsConnect, wsDisconnect } from './hooks/useWebSocket';
 
 // Tab names that map to URL segments
@@ -112,6 +113,8 @@ export default function App() {
       <Route path="/cookies" element={<Cookies />} />
       <Route path="/terms"   element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      {/* Public channel preview — no auth required */}
+      <Route path="/c/:username" element={<ChannelPreview />} />
       <Route path="*" element={<Navigate to={user ? '/profile' : '/login'} />} />
     </Routes>
   );

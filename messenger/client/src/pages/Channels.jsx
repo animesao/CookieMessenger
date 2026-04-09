@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile, Flag } from 'lucide-react';
+import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile, Flag, Link2 } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 
 function api(path, opts = {}) {
@@ -380,12 +380,26 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
           <span className="msg-chat-username">{channel.subscribers_count} подписчиков</span>
         </div>
         {isOwner && (
-          <button className="ch-sub-btn" onClick={() => setShowEdit(true)} title="Редактировать">
-            <Pencil size={14} />
-          </button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="ch-sub-btn" onClick={() => {
+              const url = `${window.location.origin}/c/${channel.username}`;
+              navigator.clipboard?.writeText(url).then(() => alert('Ссылка скопирована: ' + url)).catch(() => alert(url));
+            }} title="Скопировать ссылку" style={{ padding: '0.4rem 0.6rem' }}>
+              <Link2 size={14} />
+            </button>
+            <button className="ch-sub-btn" onClick={() => setShowEdit(true)} title="Редактировать">
+              <Pencil size={14} />
+            </button>
+          </div>
         )}
         {!isOwner && (
           <div style={{ display: 'flex', gap: 4 }}>
+            <button className="ch-sub-btn" onClick={() => {
+              const url = `${window.location.origin}/c/${channel.username}`;
+              navigator.clipboard?.writeText(url).then(() => alert('Ссылка скопирована: ' + url)).catch(() => alert(url));
+            }} title="Скопировать ссылку" style={{ padding: '0.4rem 0.6rem' }}>
+              <Link2 size={14} />
+            </button>
             <button className={`ch-sub-btn ${channel.is_subscribed ? 'active' : ''}`} onClick={handleSubscribe}>
               {channel.is_subscribed ? 'Отписаться' : 'Подписаться'}
             </button>

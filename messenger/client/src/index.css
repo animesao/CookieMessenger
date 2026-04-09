@@ -5892,3 +5892,183 @@ body::after {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+
+/* ══════════════════════════════════════
+   CHANNEL PUBLIC PREVIEW
+══════════════════════════════════════ */
+.cprev-wrap {
+  min-height: 100dvh;
+  background: #080808;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem 4rem;
+}
+
+.cprev-page {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cprev-loading, .cprev-error {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: #555;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cprev-error p { font-size: 1rem; color: #888; margin: 0; }
+.cprev-error span { font-size: 0.85rem; color: #444; }
+
+.cprev-header {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+.cprev-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #2a2a2a;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #888;
+  margin-bottom: 0.25rem;
+}
+.cprev-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.cprev-name { font-size: 1.4rem; font-weight: 700; color: #f0f0f0; margin: 0; }
+.cprev-username { font-size: 0.85rem; color: #555; margin: 0; }
+.cprev-desc { font-size: 0.9rem; color: #888; margin: 0; line-height: 1.5; max-width: 400px; }
+
+.cprev-meta {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.82rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+.cprev-meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+.cprev-open-btn {
+  margin-top: 0.5rem;
+  padding: 0.75rem 2rem;
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 50px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.cprev-open-btn:hover { opacity: 0.85; }
+
+.cprev-cta-group { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 280px; margin-top: 0.5rem; }
+
+.cprev-login-btn {
+  padding: 0.65rem 2rem;
+  background: transparent;
+  color: #888;
+  border: 1px solid #2a2a2a;
+  border-radius: 50px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.cprev-login-btn:hover { border-color: #555; color: #ccc; }
+
+.cprev-posts-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #444;
+  padding: 0 0.25rem;
+}
+
+.cprev-posts { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.cprev-empty { text-align: center; padding: 2rem; color: #444; font-size: 0.88rem; }
+
+.cprev-post {
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cprev-post-author {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cprev-post-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #888;
+  flex-shrink: 0;
+}
+.cprev-post-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.cprev-post-name { font-size: 0.875rem; font-weight: 600; color: #e0e0e0; }
+.cprev-post-time { font-size: 0.75rem; color: #444; }
+
+.cprev-post-content {
+  font-size: 0.9rem;
+  color: #ccc;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cprev-post-footer {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.78rem;
+  color: #444;
+}
+.cprev-post-footer span { display: flex; align-items: center; gap: 0.3rem; }
+
+.cprev-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  font-size: 0.75rem;
+  color: #333;
+  padding-top: 0.5rem;
+}
+.cprev-footer a { color: #444; text-decoration: none; }
+.cprev-footer a:hover { color: #888; }

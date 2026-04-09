@@ -46,6 +46,24 @@ router.get('/', auth, (req, res) => {
   res.json({ publicChannels, myChannels });
 });
 
+// ── GET /api/channels/public/:username — no auth, for public preview ─────────
+router.get('/public/:username', (req, res) => {
+  const channel = db.prepare(`
+    SELECT c.id, c.username, c.name, c.description, c.avatar, c.type,
+      (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subscribers_count
+    FROM channels c WHERE LOWER(c.username) = ? AND c.type = 'public'
+  `).get(req.params.username.toLowerCase());
+  if (!channel) return res.status(404).json({ error: 'Канал не найден' });
+
+  const posts = db.prepare(`
+    SELECT cp.id, cp.content, cp.media, cp.media_type, cp.spoiler, cp.created_at, cp.views,
+      (SELECT COUNT(*) FROM channel_post_reactions WHERE post_id = cp.id) as reactions_count
+    FROM channel_posts cp WHERE cp.channel_id = ? ORDER BY cp.created_at DESC LIMIT 20
+  `).all(channel.id);
+
+  res.json({ channel, posts });
+});
+
 // ── GET /api/channels/search ──────────────────────────────────────────────────
 router.get('/search', auth, (req, res) => {
   const q = `%${(req.query.q || '').toLowerCase()}%`;
