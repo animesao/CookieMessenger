@@ -49,7 +49,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const location = useLocation();
 
   // Derive initial tab from URL path
-  const TAB_ROUTES = ['feed', 'friends', 'messages', 'groups', 'channels', 'bookmarks', 'settings', 'admin'];
+  const TAB_ROUTES = ['feed', 'friends', 'messages', 'groups', 'channels', 'bookmarks', 'settings', 'admin', 'community'];
   const pathTab = TAB_ROUTES.find(t => location.pathname === `/${t}`);
 
   const [editing, setEditing] = useState(false);
