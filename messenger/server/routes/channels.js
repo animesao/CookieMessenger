@@ -300,6 +300,13 @@ router.get('/:id/subscribers', auth, (req, res) => {
   if (!channel) return res.status(404).json({ error: 'Канал не найден' });
   if (channel.owner_id !== req.user.id) return res.status(403).json({ error: 'Нет прав' });
 
+  // Ensure channel_bans table exists before querying it
+  db.prepare(`CREATE TABLE IF NOT EXISTS channel_bans (
+    channel_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (channel_id, user_id)
+  )`).run();
+
   const subs = db.prepare(`
     SELECT u.id, u.username, u.display_name, u.avatar, u.accent_color, u.verified,
       cs.joined_at,
