@@ -41,7 +41,7 @@ function SettingRow({ icon, label, desc, right, onClick, danger }) {
   );
 }
 
-export default function Settings({ user, onUpdate, onLogout }) {
+export default function Settings({ user, onUpdate, onLogout, onOpenAdmin }) {
   const token = () => localStorage.getItem('token');
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
@@ -362,6 +362,19 @@ export default function Settings({ user, onUpdate, onLogout }) {
           </form>
         )}
       </Section>
+
+      {/* Admin panel — mobile only, shown if admin */}
+      {onOpenAdmin && (
+        <Section title="Администрирование">
+          <SettingRow
+            icon={<Shield size={17} />}
+            label="Админ-панель"
+            desc="Управление платформой"
+            right={<ChevronRight size={16} className="settings-chevron" />}
+            onClick={onOpenAdmin}
+          />
+        </Section>
+      )}
 
       {/* Danger zone */}
       <Section title="Опасная зона">

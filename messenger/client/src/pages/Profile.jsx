@@ -55,6 +55,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState(pathTab || 'profile');
   const [profileTab, setProfileTab] = useState('info');
+  const [communitySubTab, setCommunitySubTab] = useState('friends');
   // Support opening chat from UserProfile page via navigation state
   const [chatTarget, setChatTarget] = useState(location.state?.chatTarget || null);
 
@@ -515,14 +516,12 @@ export default function Profile({ user, onUpdate, onLogout }) {
             <Users size={17} /> Друзья
             {pendingFriends > 0 && <span className="sidebar-badge">{pendingFriends}</span>}
           </button>
-          {/* On mobile: "Чат" button merges messages+friends+groups+channels */}
-          <button data-nav="chat-mobile" className={`sidebar-item sidebar-item--mobile-only ${['messages','friends','groups','channels'].includes(tab) ? 'active' : ''}`}
-            onClick={() => { switchTab('messages'); setUnreadMessages(0); setUnreadGroups(0); setPendingFriends(0); }}
-            style={['messages','friends','groups','channels'].includes(tab) ? { color: accent } : {}}>
-            <MessageSquare size={17} /> Чат
-            {(unreadMessages + unreadGroups + pendingFriends) > 0 && (
-              <span className="sidebar-badge">{unreadMessages + unreadGroups + pendingFriends}</span>
-            )}
+          {/* Mobile-only: "Сообщество" merges friends+groups+channels */}
+          <button data-nav="chat-mobile" className={`sidebar-item sidebar-item--mobile-only ${['friends','groups','channels','bookmarks','community'].includes(tab) ? 'active' : ''}`}
+            onClick={() => { switchTab('community'); setPendingFriends(0); }}
+            style={['friends','groups','channels','bookmarks','community'].includes(tab) ? { color: accent } : {}}>
+            <Users size={17} /> Сообщество
+            {(pendingFriends + unreadGroups) > 0 && <span className="sidebar-badge">{pendingFriends + unreadGroups}</span>}
           </button>
           <button data-nav="messages" className={`sidebar-item ${tab === 'messages' ? 'active' : ''}`}
             onClick={() => { switchTab('messages'); setUnreadMessages(0); }} style={tab === 'messages' ? { color: accent } : {}}>
@@ -951,6 +950,40 @@ export default function Profile({ user, onUpdate, onLogout }) {
           </div>
         )}
 
+        {/* "Сообщество" — mobile tab that shows friends with sub-nav to groups/channels */}
+        {tab === 'community' && (
+          <div className="profile-content">
+            <div className="community-subnav">
+              <button className={`community-subnav-btn ${communitySubTab === 'friends' ? 'active' : ''}`}
+                onClick={() => setCommunitySubTab('friends')} style={communitySubTab === 'friends' ? { color: accent, borderColor: accent } : {}}>
+                <Users size={14} /> Друзья
+                {pendingFriends > 0 && <span className="sidebar-badge">{pendingFriends}</span>}
+              </button>
+              <button className={`community-subnav-btn ${communitySubTab === 'groups' ? 'active' : ''}`}
+                onClick={() => setCommunitySubTab('groups')} style={communitySubTab === 'groups' ? { color: accent, borderColor: accent } : {}}>
+                <UsersRound size={14} /> Группы
+                {unreadGroups > 0 && <span className="sidebar-badge">{unreadGroups}</span>}
+              </button>
+              <button className={`community-subnav-btn ${communitySubTab === 'channels' ? 'active' : ''}`}
+                onClick={() => setCommunitySubTab('channels')} style={communitySubTab === 'channels' ? { color: accent, borderColor: accent } : {}}>
+                <Rss size={14} /> Каналы
+              </button>
+              <button className={`community-subnav-btn ${communitySubTab === 'bookmarks' ? 'active' : ''}`}
+                onClick={() => setCommunitySubTab('bookmarks')} style={communitySubTab === 'bookmarks' ? { color: accent, borderColor: accent } : {}}>
+                <Bookmark size={14} /> Закладки
+              </button>
+            </div>
+            {communitySubTab === 'friends' && (
+              <Friends user={user} onOpenChat={(targetUser) => { setChatTarget(targetUser); switchTab('messages'); }} />
+            )}
+            {communitySubTab === 'groups' && <Groups user={user} />}
+            {communitySubTab === 'channels' && <Channels user={user} />}
+            {communitySubTab === 'bookmarks' && (
+              <Bookmarks user={user} onUserClick={(username) => navigate(`/profile/${username}`)} />
+            )}
+          </div>
+        )}
+
         {tab === 'messages' && (
           <div className="profile-content profile-content--full">
             <Messages
@@ -963,7 +996,9 @@ export default function Profile({ user, onUpdate, onLogout }) {
 
         {tab === 'settings' && (
           <div className="profile-content">
-            <Settings user={user} onUpdate={onUpdate} onLogout={onLogout} />
+            <Settings user={user} onUpdate={onUpdate} onLogout={onLogout}
+              onOpenAdmin={(user.email === 'yamekel0@gmail.com' || isAdmin) ? () => switchTab('admin') : undefined}
+            />
           </div>
         )}
 

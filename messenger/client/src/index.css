@@ -4734,9 +4734,8 @@ body::after {
   .sidebar-item--mobile-only { display: flex; }
   .sidebar-logout { display: none; }
 
-  /* Hide: friends, messages, groups, channels, bookmarks, admin — replaced by "Чат" */
+  /* Hide on mobile: friends, groups, channels, bookmarks, admin — replaced by "Сообщество" and Settings */
   [data-nav="friends"],
-  [data-nav="messages"],
   [data-nav="groups"],
   [data-nav="channels"],
   [data-nav="bookmarks"],
@@ -6089,3 +6088,36 @@ body::after {
 }
 .cprev-footer a { color: #444; text-decoration: none; }
 .cprev-footer a:hover { color: #888; }
+
+/* ── Community sub-nav (mobile Сообщество tab) ── */
+.community-subnav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0 0.75rem;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.community-subnav::-webkit-scrollbar { display: none; }
+
+.community-subnav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 20px;
+  border: 1px solid #222;
+  background: transparent;
+  color: #555;
+  font-size: 0.82rem;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.community-subnav-btn.active {
+  border-color: currentColor;
+  font-weight: 600;
+}
