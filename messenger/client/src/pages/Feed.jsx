@@ -2,12 +2,26 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CreatePost from '../components/CreatePost';
 import PostCard from '../components/PostCard';
-import NotificationBell from '../components/NotificationPanel';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Loader } from 'lucide-react';
 
-export default function Feed({ user, onOpenChat }) {
+const TABS = [
+  { key: 'all',      label: 'Все посты' },
+  { key: 'friends',  label: 'Друзья' },
+  { key: 'channels', label: 'Каналы' },
+  { key: 'people',   label: 'Люди' },
+];
+
+const EMPTY_MESSAGES = {
+  all:      { title: 'Пока нет постов',                    sub: 'Будьте первым — напишите что-нибудь' },
+  friends:  { title: 'У ваших друзей пока нет постов',     sub: '' },
+  channels: { title: 'Нет постов в ваших каналах',         sub: '' },
+  people:   { title: 'Нет постов от других пользователей', sub: '' },
+};
+
+export default function Feed({ user }) {
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState('all');
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -15,14 +29,15 @@ export default function Feed({ user, onOpenChat }) {
   const [initial, setInitial] = useState(true);
   const [error, setError] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const notifRef = useRef(null); // kept for compatibility
-  const accent = user.accent_color || '#fff';
+  const [friendIds, setFriendIds] = useState(new Set());
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
 
-  const loadPosts = useCallback(async (p = 1, replace = false) => {
+  const loadPosts = useCallback(async (mode, p = 1, replace = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/feed?page=${p}`, {
+      const res = await fetch(`/api/feed?mode=${mode}&page=${p}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       const data = await res.json();
@@ -39,16 +54,29 @@ export default function Feed({ user, onOpenChat }) {
   }, []);
 
   useEffect(() => {
-    loadPosts(1, true);
-    // Load initial online users
+    loadPosts('all', 1, true);
     fetch('/api/users/online', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(r => r.json()).then(ids => setOnlineUsers(new Set(ids))).catch(() => {});
+    fetch('/api/friends', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(r => r.json()).then(list => setFriendIds(new Set((list || []).map(f => f.id)))).catch(() => {});
   }, [loadPosts]);
+
+  const handleTabChange = (key) => {
+    setViewMode(key);
+    setPosts([]);
+    setPage(1);
+    setHasMore(true);
+    setInitial(true);
+    loadPosts(key, 1, true);
+  };
 
   useWebSocket({
     new_post: (post) => {
-      // Skip own posts — already added optimistically via handlePost
-      if (post.user_id === user.id) return;
+      const mode = viewModeRef.current;
+      if (mode === 'channels') return; // channel posts come via channel_post events
+      if (post.user_id === user.id) return; // already added optimistically
+      if (mode === 'friends' && !friendIds.has(post.user_id)) return;
+      if (mode === 'people' && (friendIds.has(post.user_id) || post.user_id === user.id)) return;
       setPosts(prev => prev.find(p => p.id === post.id) ? prev : [post, ...prev]);
     },
     delete_post: ({ postId }) => {
@@ -117,10 +145,21 @@ export default function Feed({ user, onOpenChat }) {
     <div className="feed-page">
       <div className="feed-header">
         <span className="feed-title">Лента</span>
+        <div className="feed-tabs">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              className={`feed-tab${viewMode === tab.key ? ' feed-tab--active' : ''}`}
+              onClick={() => handleTabChange(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="feed-content">
-        <CreatePost user={user} onPost={handlePost} />
+        {viewMode === 'all' && <CreatePost user={user} onPost={handlePost} />}
 
         {initial && loading && (
           <div className="feed-loader"><Loader size={20} className="spin" /></div>
@@ -130,7 +169,7 @@ export default function Feed({ user, onOpenChat }) {
           <div className="feed-empty">
             <p>Ошибка загрузки</p>
             <span>{error}</span>
-            <button className="feed-load-more" style={{ marginTop: '1rem' }} onClick={() => loadPosts(1, true)}>
+            <button className="feed-load-more" style={{ marginTop: '1rem' }} onClick={() => loadPosts(viewMode, 1, true)}>
               Попробовать снова
             </button>
           </div>
@@ -154,13 +193,13 @@ export default function Feed({ user, onOpenChat }) {
 
         {!initial && !error && posts.length === 0 && (
           <div className="feed-empty">
-            <p>Пока нет постов</p>
-            <span>Будьте первым — напишите что-нибудь</span>
+            <p>{EMPTY_MESSAGES[viewMode].title}</p>
+            {EMPTY_MESSAGES[viewMode].sub && <span>{EMPTY_MESSAGES[viewMode].sub}</span>}
           </div>
         )}
 
         {hasMore && !loading && !error && (
-          <button className="feed-load-more" onClick={() => loadPosts(page + 1)}>
+          <button className="feed-load-more" onClick={() => loadPosts(viewMode, page + 1)}>
             Загрузить ещё
           </button>
         )}

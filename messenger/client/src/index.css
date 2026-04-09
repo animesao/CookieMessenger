@@ -1426,6 +1426,49 @@ body::after {
 /* ── Feed ── */
 .feed-page { width: 100%; }
 
+.feed-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.feed-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.feed-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.feed-tabs::-webkit-scrollbar { display: none; }
+
+.feed-tab {
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  border: 1px solid #222;
+  background: transparent;
+  color: #555;
+  font-size: 0.82rem;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.feed-tab:hover { color: #aaa; border-color: #333; }
+.feed-tab--active {
+  background: #1e1e1e;
+  border-color: #444;
+  color: #fff;
+  font-weight: 500;
+}
+
 .feed-content {
   display: flex;
   flex-direction: column;
@@ -1928,8 +1971,8 @@ body::after {
 /* ── Feed Header ── */
 .feed-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.75rem;
   padding: 0 0 1rem 0;
   margin-bottom: 0.25rem;
 }
@@ -1939,6 +1982,34 @@ body::after {
   font-weight: 600;
   color: #888;
   letter-spacing: 0.02em;
+}
+
+/* ── Feed Tabs ── */
+.feed-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid #222;
+  padding-bottom: 0;
+}
+
+.feed-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.feed-tab:hover { color: #ccc; }
+
+.feed-tab--active {
+  color: #fff;
+  border-bottom-color: #fff;
+  font-weight: 600;
 }
 
 /* ── Mention tag ── */
