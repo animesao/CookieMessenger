@@ -9,10 +9,10 @@ git pull origin main
 
 echo "=== Installing client deps ==="
 cd $BASE/messenger/client
-npm install
+npm install --legacy-peer-deps
 
 echo "=== Building client ==="
-npm run build
+npm run build --legacy-peer-deps
 
 echo "=== Copying build to deploy ==="
 rm -rf $BASE/deploy/client/dist/*
