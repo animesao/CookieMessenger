@@ -24,6 +24,7 @@ function auth(req, res, next) {
 
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    req.userId = req.user.id; // Add userId for convenience
   } catch (err) {
     if (err.name === 'TokenExpiredError')
       return res.status(401).json({ error: 'Токен истёк, войдите снова' });
