@@ -380,18 +380,21 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
   const handleMediaPick = async (e) => {
     const files = Array.from(e.target.files).slice(0, 10);
     if (!files.length) return;
-    const previews = [];
+    const newPreviews = [];
     for (const file of files) {
       if (file.size > 10 * 1024 * 1024) continue;
       const src = await fileToBase64(file);
       const type = file.type.startsWith('image/') ? 'image' : 'video';
-      previews.push({ src, type });
+      newPreviews.push({ src, type });
     }
-    if (previews.length === 1) {
-      setMediaPreview(previews[0]);
-    } else if (previews.length > 1) {
-      setMediaPreview({ multiple: previews });
-    }
+    if (!newPreviews.length) return;
+
+    // Merge with existing previews
+    setMediaPreview(prev => {
+      const existing = prev?.multiple ? prev.multiple : prev ? [prev] : [];
+      const merged = [...existing, ...newPreviews].slice(0, 10);
+      return merged.length === 1 ? merged[0] : { multiple: merged };
+    });
     e.target.value = '';
   };
 
@@ -405,14 +408,11 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         const content = i === 0 ? (text.trim() || null) : null;
-        const res = await api(`/api/channels/${channel.id}/posts`, {
+        await api(`/api/channels/${channel.id}/posts`, {
           method: 'POST',
           body: JSON.stringify({ content, media: f.src, media_type: f.type, spoiler: spoiler && !!f.src }),
         });
-        if (res.ok) {
-          const post = await res.json();
-          setPosts(prev => [post, ...prev]);
-        }
+        // Posts arrive via WS — no local setPosts needed
       }
       setText('');
       setMediaPreview(null);
@@ -421,17 +421,14 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
       return;
     }
 
-    const res = await api(`/api/channels/${channel.id}/posts`, {
+    await api(`/api/channels/${channel.id}/posts`, {
       method: 'POST',
       body: JSON.stringify({ content: text.trim() || null, media: mediaPreview?.src || null, media_type: mediaPreview?.type || null, spoiler: spoiler && !!mediaPreview }),
     });
-    if (res.ok) {
-      const post = await res.json();
-      setPosts(prev => [post, ...prev]);
-      setText('');
-      setMediaPreview(null);
-      setSpoiler(false);
-    }
+    // Post arrives via WS broadcast
+    setText('');
+    setMediaPreview(null);
+    setSpoiler(false);
     setSending(false);
   };
 
