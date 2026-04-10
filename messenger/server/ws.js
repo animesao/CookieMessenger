@@ -89,10 +89,10 @@ function setup(server) {
               const target = db.prepare('SELECT privacy_who_can_call FROM users WHERE id = ?').get(msg.to);
               const setting = target?.privacy_who_can_call || 'everyone';
               
-              // Debug log
               console.log(`[WS] Call offer: from=${userId} to=${msg.to}, privacy=${setting}`);
               
               if (setting === 'nobody') {
+                console.log(`[WS] Privacy blocked call to ${msg.to}`);
                 sendTo(userId, 'call_reject', { from: msg.to, reason: 'privacy' });
                 return;
               }
@@ -103,6 +103,7 @@ function setup(server) {
                   AND status='accepted'
                 `).get(userId, msg.to, msg.to, userId);
                 if (!areFriends) {
+                  console.log(`[WS] Not friends, blocking call`);
                   sendTo(userId, 'call_reject', { from: msg.to, reason: 'not_friends' });
                   return;
                 }
@@ -111,10 +112,7 @@ function setup(server) {
               console.error('[WS] Error checking call privacy:', err);
             }
           }
-          // Debug log for all signaling
-          if (msg.event.startsWith('call_')) {
-            console.log(`[WS] Signaling: ${msg.event} from=${userId} to=${msg.to}`);
-          }
+          console.log(`[WS] Forwarding: ${msg.event} from=${userId} to=${msg.to}`);
           sendTo(msg.to, msg.event, { ...msg.data, from: userId });
         }
 
