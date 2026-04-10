@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users, Plus, Search, X, Send, ArrowLeft, Lock, Globe,
   LogOut, Trash2, Settings, UserPlus, Crown, Shield, Check,
-  Image, Video, Smile, Flag,
+  Image, Video, Smile, Flag, Volume2,
 } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 import Lightbox from '../components/Lightbox';
+import VoiceChatRoom from '../components/VoiceChatRoom';
 
 function api(path, opts = {}) {
   return fetch(path, {
@@ -174,6 +175,7 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [inviteSearch, setInviteSearch] = useState('');
   const [inviteResults, setInviteResults] = useState([]);
+  const [activeRoom, setActiveRoom] = useState(null);
   const bottomRef = useRef();
   const fileRef = useRef();
   const videoRef = useRef();
@@ -288,6 +290,9 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
           <span className="msg-chat-username">{group.member_count} участников</span>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
+          <button className={`grp-tab-btn ${activeRoom ? 'active' : ''}`} onClick={() => setActiveRoom(activeRoom ? null : { id: group.id, name: group.name })} title="Голосовой чат" style={activeRoom ? { color: '#69db7c' } : {}}>
+            <Volume2 size={15} />
+          </button>
           <button className={`grp-tab-btn ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')} title="Чат"><Send size={15} /></button>
           <button className={`grp-tab-btn ${tab === 'members' ? 'active' : ''}`} onClick={() => setTab('members')} title="Участники"><Users size={15} /></button>
           {isAdmin && <button className={`grp-tab-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')} title="Настройки"><Settings size={15} /></button>}
@@ -409,6 +414,14 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
         <ReportModal targetType="group" targetId={group.id} onClose={() => setShowReport(false)} />
       )}
       {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+      {activeRoom && (
+        <VoiceChatRoom 
+          room={activeRoom} 
+          currentUser={user} 
+          groupId={group.id}
+          onClose={() => setActiveRoom(null)}
+        />
+      )}
     </div>
   );
 }

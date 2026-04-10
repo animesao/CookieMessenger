@@ -24,7 +24,11 @@ function checkWsMessageRate(userId, event) {
 
 const ALLOWED_SIGNALING = new Set([
   'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_end', 'call_busy',
+  'room_join', 'room_leave', 'room_offer', 'room_answer', 'room_ice', 'room_user_joined', 'room_user_left',
 ]);
+
+// Room participants: roomId -> Map<userId, Set<ws>>
+const roomParticipants = new Map();
 
 function setup(server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -105,6 +109,80 @@ function setup(server) {
           }
           sendTo(msg.to, msg.event, { ...msg.data, from: userId });
         }
+
+        // Room signaling (broadcast to all participants in room)
+        if (msg.event?.startsWith('room_') && msg.roomId && Number.isInteger(msg.roomId)) {
+          const roomId = msg.roomId;
+          const participants = roomParticipants.get(roomId);
+          if (!participants) return;
+          
+          const { userJoined, userLeft } = msg;
+          
+          // room_join: add user to room participants
+          if (msg.event === 'room_join' && userId) {
+            if (!roomParticipants.has(roomId)) roomParticipants.set(roomId, new Map());
+            const room = roomParticipants.get(roomId);
+            if (!room.has(userId)) room.set(userId, new Set());
+            room.get(userId).add(ws);
+            
+            // Notify others about new participant
+            const userInfo = { id: userId, ...msg.userData };
+            participants.forEach((sockets, uid) => {
+              if (uid !== userId) {
+                sockets.forEach(s => {
+                  if (s.readyState === WebSocket.OPEN) {
+                    s.send(JSON.stringify({ event: 'room_user_joined', roomId, user: userInfo }));
+                  }
+                });
+              }
+            });
+            
+            // Send current participants to the new user
+            const currentUsers = [];
+            participants.forEach((sockets, uid) => {
+              currentUsers.push(uid);
+            });
+            ws.send(JSON.stringify({ event: 'room_participants', roomId, users: currentUsers }));
+            return;
+          }
+          
+          // room_leave: remove user from room
+          if (msg.event === 'room_leave' && userId) {
+            const room = roomParticipants.get(roomId);
+            if (room) {
+              room.get(userId)?.delete(ws);
+              if (room.get(userId)?.size === 0) room.delete(userId);
+            }
+            
+            // Notify others
+            participants.forEach((sockets, uid) => {
+              sockets.forEach(s => {
+                if (s.readyState === WebSocket.OPEN) {
+                  s.send(JSON.stringify({ event: 'room_user_left', roomId, userId }));
+                }
+              });
+            });
+            
+            // Clean up empty room
+            if (roomParticipants.get(roomId)?.size === 0) {
+              roomParticipants.delete(roomId);
+            }
+            return;
+          }
+          
+          // Broadcast signaling messages to all room participants except sender
+          const broadcastEvents = ['room_offer', 'room_answer', 'room_ice', 'room_toggle_mic', 'room_toggle_cam'];
+          if (broadcastEvents.includes(msg.event)) {
+            const excludeWs = msg.excludeWs;
+            participants.forEach((sockets, uid) => {
+              sockets.forEach(s => {
+                if (s !== excludeWs && s.readyState === WebSocket.OPEN) {
+                  s.send(JSON.stringify({ event: msg.event, roomId, from: userId, ...msg.data }));
+                }
+              });
+            });
+          }
+        }
       } catch (err) {
         console.error('[WS] Message handling error:', err);
       }
@@ -118,6 +196,27 @@ function setup(server) {
           broadcast('user_offline', { userId });
         }
       }
+      
+      // Remove from all room participants and notify
+      roomParticipants.forEach((participants, roomId) => {
+        if (participants.has(userId)) {
+          participants.get(userId)?.delete(ws);
+          if (participants.get(userId)?.size === 0) {
+            participants.delete(userId);
+          }
+          // Notify others
+          participants.forEach((sockets) => {
+            sockets.forEach(s => {
+              if (s.readyState === WebSocket.OPEN) {
+                s.send(JSON.stringify({ event: 'room_user_left', roomId, userId }));
+              }
+            });
+          });
+          if (participants.size === 0) {
+            roomParticipants.delete(roomId);
+          }
+        }
+      });
     });
 
     ws.on('error', () => {});

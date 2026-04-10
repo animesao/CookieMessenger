@@ -149,6 +149,12 @@ export default function CallManager({ currentUser }) {
     try { pc.current?.close(); } catch {}
     pc.current = null;
 
+    // Clean up remote audio
+    if (window.remoteAudioEl) {
+      window.remoteAudioEl.pause();
+      window.remoteAudioEl.srcObject = null;
+    }
+
     iceCandidateBuffer.current = [];
     remoteUserRef.current = null;
     incomingDataRef.current = null;
@@ -258,13 +264,35 @@ export default function CallManager({ currentUser }) {
 
     conn.ontrack = (e) => {
       if (e.track.kind === 'audio') {
-        if (!window.remoteAudio) {
-          const audioEl = new Audio();
+        // Create or reuse audio element for remote audio
+        if (!window.remoteAudioEl) {
+          const audioEl = document.createElement('audio');
           audioEl.autoplay = true;
-          window.remoteAudio = audioEl;
+          audioEl.controls = false;
+          audioEl.style.display = 'none';
+          document.body.appendChild(audioEl);
+          window.remoteAudioEl = audioEl;
         }
+        
         if (e.streams[0]) {
-          window.remoteAudio.srcObject = e.streams[0];
+          const oldStream = window.remoteAudioEl.srcObject;
+          window.remoteAudioEl.srcObject = e.streams[0];
+          
+          // Try to play - will work after user interaction
+          const playPromise = window.remoteAudioEl.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              // Autoplay blocked - will play on next user interaction
+              console.log('[Call] Audio autoplay blocked, waiting for interaction');
+              const resumeAudio = () => {
+                window.remoteAudioEl.play().catch(() => {});
+                document.removeEventListener('click', resumeAudio);
+                document.removeEventListener('touchstart', resumeAudio);
+              };
+              document.addEventListener('click', resumeAudio, { once: true });
+              document.addEventListener('touchstart', resumeAudio, { once: true });
+            });
+          }
         }
       } else if (e.track.kind === 'video') {
         if (remoteVideoRef.current && e.streams[0]) {
@@ -412,9 +440,13 @@ export default function CallManager({ currentUser }) {
     try {
       const stream = await getMedia(type);
       const conn = createPC(targetUser.id);
-      stream.getTracks().forEach(t => conn.addTrack(t, stream));
+      
+      // Add all tracks to peer connection BEFORE creating offer
+      stream.getTracks().forEach(track => {
+        conn.addTrack(track, stream);
+      });
 
-      // Telegram-style offer with preferred codecs
+      // Create offer - must be after addTrack
       const offer = await conn.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: type === 'video',
@@ -472,7 +504,11 @@ export default function CallManager({ currentUser }) {
     try {
       const stream = await getMedia(incoming.type || 'audio');
       const conn = createPC(incoming.from);
-      stream.getTracks().forEach(t => conn.addTrack(t, stream));
+      
+      // Add tracks BEFORE setting remote description
+      stream.getTracks().forEach(track => {
+        conn.addTrack(track, stream);
+      });
 
       await conn.setRemoteDescription(new RTCSessionDescription(incoming.offer));
       await flushIceCandidates();
@@ -484,6 +520,13 @@ export default function CallManager({ currentUser }) {
 
       wsSend('call_answer', incoming.from, { answer });
       durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+      
+      // Try to play remote audio after answer
+      setTimeout(() => {
+        if (window.remoteAudioEl) {
+          window.remoteAudioEl.play().catch(() => {});
+        }
+      }, 500);
     } catch (err) {
       console.error('[Call] Error:', err.message);
       setCallError(err.message || 'Ошибка при ответе на звонок');
@@ -522,28 +565,55 @@ export default function CallManager({ currentUser }) {
   // ── Screen share ───────────────────────────────────────────────────────────
   const toggleScreen = async () => {
     if (!pc.current) return;
+    
     if (screenOn) {
+      // Stop sharing
       screenStream.current?.getTracks().forEach(t => t.stop());
       screenStream.current = null;
+      
+      // Restore camera track
       const videoTrack = localStream.current?.getVideoTracks()[0];
       if (videoTrack) {
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-        await sender?.replaceTrack(videoTrack);
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream.current;
+        if (sender) {
+          await sender.replaceTrack(videoTrack);
+        }
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream.current;
       }
       setScreenOn(false);
     } else {
       try {
-        const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const screen = await navigator.mediaDevices.getDisplayMedia({ 
+          video: { 
+            cursor: 'always',
+            displaySurface: 'monitor'
+          }, 
+          audio: false 
+        });
+        
         screenStream.current = screen;
         const screenTrack = screen.getVideoTracks()[0];
+        
+        // Find video sender and replace track
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) await sender.replaceTrack(screenTrack);
-        else pc.current.addTrack(screenTrack, screen);
-        if (localVideoRef.current) localVideoRef.current.srcObject = screen;
-        screenTrack.onended = () => toggleScreen();
+        if (sender) {
+          await sender.replaceTrack(screenTrack);
+        }
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screen;
+        }
+        
+        screenTrack.onended = () => {
+          if (screenOn) toggleScreen();
+        };
+        
         setScreenOn(true);
-      } catch {}
+      } catch (err) {
+        console.error('[Screen] Error:', err);
+      }
     }
   };
 
@@ -584,6 +654,13 @@ export default function CallManager({ currentUser }) {
         await flushIceCandidates();
         setCallStateSync('active');
         durationTimer.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+        
+        // Try to play remote audio after connection established
+        setTimeout(() => {
+          if (window.remoteAudioEl) {
+            window.remoteAudioEl.play().catch(() => {});
+          }
+        }, 500);
       } catch (err) {
         console.error('[Call] Error:', err.message);
         setCallError('Ошибка соединения');
