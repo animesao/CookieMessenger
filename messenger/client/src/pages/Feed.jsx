@@ -4,6 +4,7 @@ import CreatePost from '../components/CreatePost';
 import PostCard from '../components/PostCard';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Loader } from 'lucide-react';
+import StoriesBar from '../components/Stories';
 
 const TABS = [
   { key: 'all',      label: 'Все посты' },
@@ -159,6 +160,7 @@ export default function Feed({ user }) {
       </div>
 
       <div className="feed-content">
+        <StoriesBar user={user} />
         {viewMode === 'all' && <CreatePost user={user} onPost={handlePost} />}
 
         {initial && loading && (

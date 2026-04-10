@@ -6261,3 +6261,290 @@ body::after {
   filter: drop-shadow(0 0 4px rgba(255, 212, 59, 0.6));
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════
+   STORIES
+══════════════════════════════════════ */
+.stories-bar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem 0 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  align-items: flex-start;
+}
+.stories-bar::-webkit-scrollbar { display: none; }
+
+.story-add-wrap, .story-item-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.story-add-btn {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  background: #111;
+  cursor: pointer;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.story-add-btn:hover { border-color: #555; }
+
+.story-add-plus {
+  position: absolute; bottom: 0; right: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem;
+  border: 2px solid #0a0a0a;
+}
+
+.story-ring {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  padding: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+.story-ring-unseen {
+  background: linear-gradient(135deg, #ffd43b, #ff6b6b, #da77f2);
+}
+.story-ring-seen {
+  background: #2a2a2a;
+}
+
+.story-thumb {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background-size: cover; background-position: center;
+  background-color: #1a1a1a;
+  border: 2px solid #0a0a0a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: #888; font-weight: 700;
+}
+
+.story-label {
+  font-size: 0.65rem;
+  color: #666;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ── Story Viewer ── */
+.story-viewer {
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.story-viewer-bg {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+}
+
+.story-viewer-container {
+  position: relative;
+  width: min(420px, 100vw);
+  height: min(750px, 100dvh);
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+}
+
+.story-progress-bars {
+  display: flex;
+  gap: 3px;
+  padding: 10px 10px 0;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+}
+
+.story-progress-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.story-progress-fill {
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+
+.story-header {
+  position: absolute;
+  top: 20px; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 10;
+}
+
+.story-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.story-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background-size: cover; background-position: center;
+  background-color: #333;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; color: #fff; font-weight: 700;
+  flex-shrink: 0;
+}
+
+.story-username {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  display: block;
+}
+
+.story-time {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.6);
+  display: block;
+}
+
+.story-btn {
+  background: rgba(0,0,0,0.4);
+  border: none;
+  color: #fff;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.story-btn:hover { background: rgba(0,0,0,0.7); }
+.story-btn-danger:hover { background: rgba(255,107,107,0.5); }
+
+.story-media-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.story-media {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.story-text {
+  position: absolute;
+  bottom: 60px;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  padding: 0 1rem;
+}
+
+.story-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.3);
+  border: none;
+  color: #fff;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.story-nav:hover { background: rgba(0,0,0,0.6); }
+.story-nav-prev { left: 8px; }
+.story-nav-next { right: 8px; }
+
+.story-group-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+.story-group-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+}
+.story-group-dot.active { background: #fff; }
+
+/* Viewers panel */
+.story-viewers-panel {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: #111;
+  border-top: 1px solid #222;
+  border-radius: 0 0 16px 16px;
+  max-height: 50%;
+  overflow-y: auto;
+  z-index: 20;
+}
+.story-viewers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: #888;
+  border-bottom: 1px solid #1a1a1a;
+}
+.story-viewers-header button { background: none; border: none; color: #666; cursor: pointer; }
+.story-viewer-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #111;
+}
+.story-viewer-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  background-size: cover; background-position: center;
+  background-color: #1a1a1a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; color: #888; font-weight: 700;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .story-viewer-container {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+}
