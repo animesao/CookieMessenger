@@ -6548,3 +6548,390 @@ body::after {
     border-radius: 0;
   }
 }
+
+/* ── Voice Chat ──────────────────────────────────────────────────────────── */
+.vc-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 340px;
+  background: #141414;
+  border: 1px solid #222;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 900;
+  overflow: hidden;
+  animation: slideUp 0.2s ease;
+}
+
+.vc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #1a1a1a;
+  border-bottom: 1px solid #222;
+}
+
+.vc-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.vc-close-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.vc-close-btn:hover { background: #222; color: #fff; }
+
+.vc-error {
+  padding: 0.75rem 1rem;
+  background: rgba(255,107,107,0.1);
+  border-bottom: 1px solid rgba(255,107,107,0.2);
+  color: #ff6b6b;
+  font-size: 0.82rem;
+}
+
+/* Lobby */
+.vc-lobby {
+  padding: 1rem;
+}
+
+.vc-rooms-section {}
+
+.vc-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #555;
+}
+
+.vc-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #888;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.vc-add-btn:hover { border-color: #fff; color: #fff; }
+
+.vc-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: #555;
+}
+.vc-empty svg { margin-bottom: 0.5rem; opacity: 0.4; }
+.vc-empty p { margin: 0.5rem 0; font-size: 0.9rem; }
+
+.vc-room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vc-room-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 10px;
+  gap: 0.75rem;
+}
+
+.vc-room-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vc-room-name {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vc-room-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #555;
+}
+
+/* Active room */
+.vc-active-room {
+  padding: 1rem;
+}
+
+.vc-room-title {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1rem;
+}
+
+.vc-participants-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.vc-participant-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vc-participant {
+  position: relative;
+  border-radius: 50%;
+  border: 2px solid #333;
+  background: #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.vc-participant-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vc-participant-initial {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #888;
+}
+
+.vc-participant-speaking .vc-speaking-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid;
+  animation: pulse 1s infinite;
+}
+
+.vc-participant-local {
+  position: relative;
+}
+
+.vc-mic-off-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  background: #ff6b6b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.05); }
+}
+
+.vc-participant-name {
+  font-size: 0.68rem;
+  color: #666;
+  max-width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.vc-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.vc-ctrl {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #222;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.vc-ctrl:hover { background: #333; }
+.vc-ctrl-off { background: #3a2020; color: #ff6b6b; }
+.vc-ctrl-off:hover { background: #4a2828; }
+.vc-ctrl-leave { background: #ff6b6b; color: #fff; }
+.vc-ctrl-leave:hover { background: #ff5252; }
+
+/* Buttons */
+.vc-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+.vc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.vc-btn-primary { background: #fff; color: #000; }
+.vc-btn-primary:hover:not(:disabled) { background: #e0e0e0; }
+.vc-btn-secondary { background: transparent; border: 1px solid #333; color: #888; }
+.vc-btn-secondary:hover:not(:disabled) { border-color: #fff; color: #fff; }
+.vc-btn-small { padding: 0.35rem 0.75rem; font-size: 0.75rem; }
+.vc-btn-join { background: transparent; border: 1px solid #40c057; color: #40c057; }
+.vc-btn-join:hover { background: rgba(64,192,87,0.1); }
+
+/* Modal */
+.vc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.vc-modal {
+  background: #141414;
+  border: 1px solid #222;
+  border-radius: 14px;
+  padding: 1.25rem;
+  width: 300px;
+  animation: slideUp 0.2s ease;
+}
+
+.vc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.vc-modal-header h3 { margin: 0; font-size: 1rem; color: #fff; }
+.vc-modal-close { background: none; border: none; color: #555; cursor: pointer; }
+.vc-modal-close:hover { color: #fff; }
+
+.vc-form-group {
+  margin-bottom: 1rem;
+}
+.vc-form-group label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #555;
+  margin-bottom: 0.4rem;
+}
+.vc-form-group input {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  background: #0a0a0a;
+  border: 1px solid #222;
+  border-radius: 8px;
+  color: #f0f0f0;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.vc-form-group input:focus { border-color: #444; }
+
+.vc-type-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.vc-type-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 8px;
+  color: #555;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.vc-type-btn:hover { border-color: #333; color: #888; }
+.vc-type-btn.active { border-color: #fff; color: #fff; background: #222; }
+
+.vc-modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Group tab button */
+.grp-tab-btn.active {
+  color: #fff;
+  background: #222;
+}
+
+/* Remote audio elements - hidden but functional */
+audio[id^="remote-audio-"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Call remote video */
+.call-remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* Video playsInline support */
+video {
+  object-fit: cover;
+}
