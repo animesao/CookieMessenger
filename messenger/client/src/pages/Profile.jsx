@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   User, Camera, ImagePlus, FileText, Palette, Check,
-  Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss,
+  Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss, Settings,
   Users, MessageSquare, FileImage, Loader, ShieldAlert, UsersRound,
   Sparkles, Music, Upload, Bookmark,
 } from 'lucide-react';
@@ -462,7 +462,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
               <UsersRound size={17} /> Группы
             </button>
             <button className="sidebar-item" onClick={() => navigate('/settings')}>
-              <Shield size={17} /> Настройки
+              <Settings size={17} /> Настройки
             </button>
           </nav>
           <div className="sidebar-footer">
@@ -543,7 +543,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
           </button>
           <button data-nav="settings" className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => switchTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
-            <Shield size={17} /> Настройки
+            <Settings size={17} /> Настройки
           </button>
           {(user.email === 'yamekel0@gmail.com' || isAdmin) && (
             <button data-nav="admin" className={`sidebar-item ${tab === 'admin' ? 'active' : ''}`}
