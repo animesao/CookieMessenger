@@ -40,10 +40,18 @@ async function connect() {
       const parsed = JSON.parse(e.data);
       
       // Handle auth_ok response
-      if (parsed.type === 'auth_ok') return;
+      if (parsed.type === 'auth_ok') {
+        console.log('[WS] Auth OK - connected');
+        return;
+      }
       
       const { event, data } = parsed;
       if (!event) return;
+      
+      // Debug: log call events
+      if (event.startsWith('call_') || event.startsWith('room_')) {
+        console.log('[WS] Event:', event, 'data:', JSON.stringify(data)?.slice(0, 200));
+      }
       
       // 1. Dispatch to all registered hook handlers
       Object.values(globalHandlers).forEach(h => h[event]?.(data));
