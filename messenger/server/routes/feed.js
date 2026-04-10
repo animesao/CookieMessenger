@@ -103,10 +103,15 @@ function enrichPosts(posts, userId) {
 
   // Batch: VIP badge — users with 'vip' or 'owner' role
   const authorIds = [...new Set(posts.map(p => p.user_id))];
-  const authorPh = authorIds.map(() => '?').join(',');
-  const vipUsers = authorIds.length ? new Set(
-    db.prepare(`SELECT DISTINCT user_id FROM user_roles WHERE user_id IN (${authorPh}) AND role IN ('vip','owner','admin')`).all(...authorIds).map(r => r.user_id)
-  ) : new Set();
+  let vipUsers = new Set();
+  if (authorIds.length) {
+    try {
+      const authorPh = authorIds.map(() => '?').join(',');
+      vipUsers = new Set(
+        db.prepare(`SELECT DISTINCT user_id FROM user_roles WHERE user_id IN (${authorPh}) AND role IN ('vip','owner','admin')`).all(...authorIds).map(r => r.user_id)
+      );
+    } catch {} // table may not exist yet
+  }
 
   return posts.map(post => {
     let poll = null;
