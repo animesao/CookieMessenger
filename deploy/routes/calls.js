@@ -79,14 +79,14 @@ router.post('/rooms', auth, (req, res) => {
     if (!['audio', 'video'].includes(type)) return res.status(400).json({ error: 'Invalid type' });
     
     if (group_id) {
-      const member = db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+      const member = db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.userId);
       if (!member) return res.status(403).json({ error: 'Not a member' });
     }
     
     const result = db.prepare(`
       INSERT INTO call_rooms (name, group_id, channel_id, type, owner_id)
       VALUES (?, ?, ?, ?, ?)
-    `).run(name, group_id || null, channel_id || null, type, req.user.id);
+    `).run(name, group_id || null, channel_id || null, type, req.userId);
     
     const room = db.prepare('SELECT * FROM call_rooms WHERE id = ?').get(result.lastInsertRowid);
     res.json(room);
@@ -102,16 +102,16 @@ router.post('/rooms/:roomId/join', auth, (req, res) => {
     if (!room) return res.status(404).json({ error: 'Room not found' });
     
     if (room.group_id) {
-      const member = db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(room.group_id, req.user.id);
+      const member = db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(room.group_id, req.userId);
       if (!member) return res.status(403).json({ error: 'Not a member' });
     }
     
-    const existing = db.prepare('SELECT 1 FROM call_room_participants WHERE room_id = ? AND user_id = ?').get(req.params.roomId, req.user.id);
+    const existing = db.prepare('SELECT 1 FROM call_room_participants WHERE room_id = ? AND user_id = ?').get(req.params.roomId, req.userId);
     if (!existing) {
-      db.prepare('INSERT INTO call_room_participants (room_id, user_id) VALUES (?, ?)').run(req.params.roomId, req.user.id);
+      db.prepare('INSERT INTO call_room_participants (room_id, user_id) VALUES (?, ?)').run(req.params.roomId, req.userId);
     }
     
-    const user = db.prepare('SELECT id, display_name, avatar, accent_color, username FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare('SELECT id, display_name, avatar, accent_color, username FROM users WHERE id = ?').get(req.userId);
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -121,7 +121,7 @@ router.post('/rooms/:roomId/join', auth, (req, res) => {
 
 router.post('/rooms/:roomId/leave', auth, (req, res) => {
   try {
-    db.prepare('DELETE FROM call_room_participants WHERE room_id = ? AND user_id = ?').run(req.params.roomId, req.user.id);
+    db.prepare('DELETE FROM call_room_participants WHERE room_id = ? AND user_id = ?').run(req.params.roomId, req.userId);
     
     const count = db.prepare('SELECT COUNT(*) as c FROM call_room_participants WHERE room_id = ?').get(req.params.roomId);
     if (count.c === 0) {
@@ -139,7 +139,7 @@ router.delete('/rooms/:roomId', auth, (req, res) => {
   try {
     const room = db.prepare('SELECT * FROM call_rooms WHERE id = ?').get(req.params.roomId);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    if (room.owner_id !== req.user.id) return res.status(403).json({ error: 'Not the owner' });
+    if (room.owner_id !== req.userId) return res.status(403).json({ error: 'Not the owner' });
     
     db.prepare('DELETE FROM call_rooms WHERE id = ?').run(req.params.roomId);
     res.json({ ok: true });
@@ -153,7 +153,7 @@ router.post('/rooms/:roomId/kick/:userId', auth, (req, res) => {
   try {
     const room = db.prepare('SELECT * FROM call_rooms WHERE id = ?').get(req.params.roomId);
     if (!room) return res.status(404).json({ error: 'Room not found' });
-    if (room.owner_id !== req.user.id && parseInt(req.params.userId) !== req.user.id) {
+    if (room.owner_id !== req.userId && parseInt(req.params.userId) !== req.userId) {
       return res.status(403).json({ error: 'Not allowed' });
     }
     
