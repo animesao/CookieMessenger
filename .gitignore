@@ -6,6 +6,6 @@ messenger/server/*.db-shm
 messenger/server/*.db-wal
 .env
 messenger/server/.env
-dist/
+messenger/client/dist/
 .DS_Store
 Thumbs.db
