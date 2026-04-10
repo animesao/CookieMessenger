@@ -7,11 +7,8 @@ echo "=== Pulling latest code ==="
 cd $BASE
 git pull origin main
 
-echo "=== Installing client deps ==="
-cd $BASE/messenger/client
-npm install --legacy-peer-deps
-
 echo "=== Building client ==="
+cd $BASE/messenger/client
 npm run build --legacy-peer-deps
 
 echo "=== Copying build to deploy ==="
