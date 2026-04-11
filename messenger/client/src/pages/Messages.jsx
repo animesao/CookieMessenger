@@ -311,16 +311,21 @@ export default function Messages({ user, initialChat, onClearInitial }) {
   const handleStickerPick = async (sticker) => {
     setShowPicker(false);
     if (!activeUser) return;
-    // sticker can be { id, image } (real image sticker) or string (emoji)
     const isReal = typeof sticker === 'object' && sticker.image;
-    await api(`/api/messages/${activeUser.id}`, {
+    // For real stickers, send sticker_id so server can look up the image
+    // This avoids sending huge base64 in every message
+    const body = isReal
+      ? { content: null, media: sticker.image, media_type: 'sticker' }
+      : { content: sticker, media: null, media_type: 'sticker' };
+
+    const res = await api(`/api/messages/${activeUser.id}`, {
       method: 'POST',
-      body: JSON.stringify({
-        content: isReal ? null : sticker,
-        media: isReal ? sticker.image : null,
-        media_type: 'sticker',
-      }),
+      body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert('Ошибка отправки стикера: ' + (err.error || res.status));
+    }
   };
 
   const handleGifPick = async (gif) => {
