@@ -226,20 +226,24 @@ export default function StoriesBar({ user }) {
   };
 
   const myGroup = groups.find(g => g.user_id === user.id);
+  const otherGroups = groups.filter(g => g.user_id !== user.id);
   const accent = user.accent_color || '#fff';
 
   return (
     <>
       <div className="stories-bar">
-        {/* Add story button */}
+        {/* Add / view my story button */}
         <div className="story-add-wrap">
-          <button className="story-add-btn" onClick={() => fileRef.current.click()} disabled={uploading}
-            style={{ borderColor: accent }}>
+          <button className="story-add-btn" onClick={() => {
+            if (myGroup) setViewerOpen(groups.indexOf(myGroup));
+            else fileRef.current.click();
+          }} disabled={uploading} style={{ borderColor: myGroup ? accent : '#333' }}>
             {myGroup
               ? <img src={myGroup.avatar || user.avatar} alt="my" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
               : (user.avatar ? <img src={user.avatar} alt="me" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <span style={{ fontSize: '1.4rem', color: '#555' }}>{(user.display_name || user.username)[0].toUpperCase()}</span>)
             }
-            <div className="story-add-plus" style={{ background: accent, color: '#000' }}>
+            <div className="story-add-plus" style={{ background: accent, color: '#000' }}
+              onClick={e => { e.stopPropagation(); fileRef.current.click(); }}>
               {uploading ? '...' : <Plus size={10} />}
             </div>
           </button>
@@ -247,21 +251,24 @@ export default function StoriesBar({ user }) {
           <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={handleUpload} />
         </div>
 
-        {/* Other users' stories */}
-        {groups.map((g, i) => (
-          <div key={g.user_id} className="story-item-wrap" onClick={() => setViewerOpen(i)}>
-            <div className={`story-ring ${g.has_unseen ? 'story-ring-unseen' : 'story-ring-seen'}`}
-              style={g.has_unseen ? { borderColor: accent } : {}}>
-              <div className="story-thumb" style={{
-                backgroundImage: g.avatar ? `url(${g.avatar})` : 'none',
-                backgroundColor: g.avatar ? 'transparent' : '#1a1a1a',
-              }}>
-                {!g.avatar && (g.display_name || g.username)[0].toUpperCase()}
+        {/* Friends' stories */}
+        {otherGroups.map((g) => {
+          const idx = groups.indexOf(g);
+          return (
+            <div key={g.user_id} className="story-item-wrap" onClick={() => setViewerOpen(idx)}>
+              <div className={`story-ring ${g.has_unseen ? 'story-ring-unseen' : 'story-ring-seen'}`}
+                style={g.has_unseen ? { borderColor: accent } : {}}>
+                <div className="story-thumb" style={{
+                  backgroundImage: g.avatar ? `url(${g.avatar})` : 'none',
+                  backgroundColor: g.avatar ? 'transparent' : '#1a1a1a',
+                }}>
+                  {!g.avatar && (g.display_name || g.username)[0].toUpperCase()}
+                </div>
               </div>
+              <span className="story-label">{g.display_name || g.username}</span>
             </div>
-            <span className="story-label">{g.display_name || g.username}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {viewerOpen !== null && (
