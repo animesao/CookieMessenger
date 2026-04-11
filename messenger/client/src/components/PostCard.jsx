@@ -324,7 +324,7 @@ export default function PostCard({ post, currentUserId, onLike, onDelete, onVote
 
       {/* Image */}
       {post.type === 'image' && post.media && (
-        <div className="post-media"><img src={post.media} alt="post" /></div>
+        <div className="post-media"><img src={post.media} alt="post" loading="lazy" /></div>
       )}
 
       {/* Video */}

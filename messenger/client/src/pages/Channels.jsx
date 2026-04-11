@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Search, X, ArrowLeft, Send, Trash2, Users, Lock, Globe, Heart, Pencil, Eye, Image, Smile, Flag, Link2 } from 'lucide-react';
 import EmojiPicker from '../components/EmojiPicker';
 
@@ -228,7 +228,7 @@ function Lightbox({ src, onClose }) {
   }, [onClose]);
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
-      <img src={src} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', borderRadius: 8, cursor: 'default' }} />
+      <img src={src} alt="full" onClick={e => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', borderRadius: 8, cursor: 'default' }} loading="lazy" />
       <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: 36, height: 36, fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
     </div>
   );
@@ -239,13 +239,13 @@ function SpoilerImage({ src, spoiler }) {
   const [lightbox, setLightbox] = useState(false);
   if (!spoiler || revealed) return (
     <>
-      <img src={src} alt="media" className="ch-post-media" onClick={() => setLightbox(true)} />
+      <img src={src} alt="media" className="ch-post-media" loading="lazy" onClick={() => setLightbox(true)} />
       {lightbox && <Lightbox src={src} onClose={() => setLightbox(false)} />}
     </>
   );
   return (
     <div className="ch-spoiler-wrap" onClick={() => setRevealed(true)} title="Нажмите чтобы показать">
-      <img src={src} alt="media" className="ch-post-media ch-spoiler-img" />
+      <img src={src} alt="media" className="ch-post-media ch-spoiler-img" loading="lazy" />
       <div className="ch-spoiler-overlay">
         <span>🔞 Нажмите чтобы показать</span>
       </div>
@@ -254,6 +254,7 @@ function SpoilerImage({ src, spoiler }) {
 }
 
 function ChannelView({ channel: initialChannel, user, onBack }) {
+  const navigate = useNavigate();
   const [channel, setChannel] = useState(initialChannel);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
