@@ -473,6 +473,13 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
             <button className="ch-sub-btn" onClick={() => setShowEdit(true)} title="Редактировать">
               <Pencil size={14} />
             </button>
+            <button className="ch-sub-btn" onClick={async () => {
+              if (!confirm('Удалить канал? Все посты будут удалены безвозвратно.')) return;
+              const res = await api(`/api/channels/${channel.id}`, { method: 'DELETE' });
+              if (res.ok) navigate('/channels');
+            }} title="Удалить канал" style={{ color: '#ff4444' }}>
+              <Trash2 size={14} />
+            </button>
           </div>
         )}
         {!isOwner && (
