@@ -70,7 +70,7 @@ export default function Stickers({ user }) {
     if (!files.length || !activePack) return;
     setUploading(true);
     for (const file of files) {
-      if (file.size > 500 * 1024) { flash('err', `${file.name} слишком большой (макс 500KB)`); continue; }
+      if (file.size > 2 * 1024 * 1024) { flash('err', `${file.name} слишком большой (макс 2MB)`); continue; }
       const image = await fileToBase64(file);
       const res = await api(`/api/stickers/packs/${activePack.id}/stickers`, {
         method: 'POST',

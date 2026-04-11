@@ -313,9 +313,12 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
                   <div>
                     {showName && !isMine && <div style={{ fontSize: 11, color: m.accent_color || '#888', marginBottom: 2, marginLeft: 4 }}>{m.display_name || m.username}</div>}
                     <div className={`msg-bubble ${isMine ? 'msg-bubble-mine' : 'msg-bubble-theirs'}`} style={isMine && !m.media ? { background: accent, color: '#000' } : {}}>
+                      {m.media_type === 'sticker' && m.media && <img src={m.media} alt="sticker" className="msg-sticker-img" />}
+                      {m.media_type === 'sticker' && !m.media && m.content && <span className="msg-sticker">{m.content}</span>}
                       {m.media && m.media_type === 'image' && <img src={m.media} alt="img" className="msg-media-img" onClick={() => setLightboxSrc(m.media)} />}
                       {m.media && m.media_type === 'video' && <video src={m.media} controls className="msg-media-video" />}
-                      {m.content && <span className="msg-bubble-text">{m.content}</span>}
+                      {m.media && m.media_type === 'gif' && <img src={m.media} alt="gif" className="msg-media-img" style={{ borderRadius: 12 }} />}
+                      {m.content && m.media_type !== 'sticker' && <span className="msg-bubble-text">{m.content}</span>}
                       <span className="msg-bubble-time" style={isMine && !m.media ? { color: 'rgba(0,0,0,0.45)' } : {}}>{msgTime(m.created_at)}</span>
                     </div>
                   </div>
@@ -342,7 +345,15 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
           <div className="msg-input-area">
             {showPicker && (
               <div className="msg-picker-wrap" ref={pickerRef}>
-                <EmojiPicker accent={accent} onEmoji={e => setText(t => t + e)} onSticker={async e => { await api(`/api/groups/${group.id}/messages`, { method: 'POST', body: JSON.stringify({ content: e, media_type: 'sticker' }) }); setShowPicker(false); }} onGif={async g => { await api(`/api/groups/${group.id}/messages`, { method: 'POST', body: JSON.stringify({ media: g.url, media_type: 'gif' }) }); setShowPicker(false); }} onClose={() => setShowPicker(false)} />
+                <EmojiPicker accent={accent} onEmoji={e => setText(t => t + e)} onSticker={async sticker => {
+                  const isReal = typeof sticker === 'object' && sticker.image;
+                  const body = isReal
+                    ? { content: null, media: sticker.image, media_type: 'sticker' }
+                    : { content: sticker, media: null, media_type: 'sticker' };
+                  const res = await api(`/api/groups/${group.id}/messages`, { method: 'POST', body: JSON.stringify(body) });
+                  if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Ошибка: ' + (err.error || res.status)); }
+                  setShowPicker(false);
+                }} onGif={async g => { await api(`/api/groups/${group.id}/messages`, { method: 'POST', body: JSON.stringify({ media: g.url, media_type: 'gif' }) }); setShowPicker(false); }} onClose={() => setShowPicker(false)} />
               </div>
             )}
             <div className="msg-input-row">

@@ -124,9 +124,9 @@ router.post('/packs/:id/stickers', auth, (req, res) => {
   const count = db.prepare('SELECT COUNT(*) as c FROM stickers WHERE pack_id = ?').get(pack.id).c;
   if (count >= 120) return res.status(400).json({ error: 'Максимум 120 стикеров в паке' });
 
-  // Max ~500KB per sticker
-  if (image.startsWith('data:') && Math.ceil((image.length * 3) / 4) > 500 * 1024)
-    return res.status(400).json({ error: 'Стикер не более 500KB' });
+  // Max ~2MB per sticker
+  if (image.startsWith('data:') && Math.ceil((image.length * 3) / 4) > 2 * 1024 * 1024)
+    return res.status(400).json({ error: 'Стикер не более 2MB' });
 
   const result = db.prepare('INSERT INTO stickers (pack_id, image, emoji) VALUES (?, ?, ?)').run(pack.id, image, emoji || null);
   const sticker = db.prepare('SELECT * FROM stickers WHERE id = ?').get(result.lastInsertRowid);

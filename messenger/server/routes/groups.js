@@ -6,6 +6,13 @@ const { validateLengths, messageLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
+// ── Migrate group_messages table ──────────────────────────────────────────────
+try {
+  const cols = db.prepare("PRAGMA table_info(group_messages)").all().map(c => c.name);
+  if (!cols.includes('media')) db.exec("ALTER TABLE group_messages ADD COLUMN media TEXT");
+  if (!cols.includes('media_type')) db.exec("ALTER TABLE group_messages ADD COLUMN media_type TEXT");
+} catch (e) { console.error('[groups] migration error:', e.message); }
+
 function isMember(groupId, userId) {
   return !!db.prepare('SELECT 1 FROM group_members WHERE group_id=? AND user_id=?').get(groupId, userId);
 }
