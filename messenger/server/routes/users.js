@@ -35,6 +35,19 @@ router.get('/online', auth, (req, res) => {
   res.json(ws.getOnlineUsers());
 });
 
+// GET /api/users/search?q= — search users by username or display_name
+router.get('/search', auth, (req, res) => {
+  const { q } = req.query;
+  if (!q?.trim()) return res.json([]);
+  const users = db.prepare(`
+    SELECT id, username, display_name, avatar, accent_color
+    FROM users
+    WHERE (username LIKE ? OR display_name LIKE ?) AND id != ?
+    LIMIT 20
+  `).all(`%${q}%`, `%${q}%`, req.user.id);
+  res.json(users);
+});
+
 // GET /api/users/:username — public profile
 router.get('/:username', auth, (req, res) => {
   const user = db.prepare(

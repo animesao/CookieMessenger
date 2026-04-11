@@ -244,7 +244,7 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
   const handleInviteSearch = async (q) => {
     setInviteSearch(q);
     if (!q.trim()) { setInviteResults([]); return; }
-    const res = await api(`/api/friends/search?q=${encodeURIComponent(q)}`);
+    const res = await api(`/api/users/search?q=${encodeURIComponent(q)}`);
     if (res.ok) {
       const users = await res.json();
       setInviteResults(users.filter(u => !group.members?.find(m => m.id === u.id)));
@@ -253,7 +253,14 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
 
   const handleInvite = async (userId) => {
     const res = await api(`/api/groups/${group.id}/invite`, { method: 'POST', body: JSON.stringify({ userId }) });
-    if (res.ok) { setInviteSearch(''); setInviteResults([]); loadGroup(); }
+    const data = await res.json();
+    if (res.ok) {
+      setInviteSearch(''); setInviteResults([]);
+      loadGroup();
+      alert(data.added ? 'Пользователь добавлен в группу' : 'Приглашение отправлено');
+    } else {
+      alert(data.error || 'Ошибка');
+    }
   };
 
   const handleKick = async (userId) => {
