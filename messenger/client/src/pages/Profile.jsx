@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   User, Camera, ImagePlus, FileText, Palette, Check,
-  Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss, Settings as SettingsIcon,
+  Pencil, X, Save, AtSign, Calendar, Shield, LogOut, Rss, Settings as SettingsIcon, Sticker,
   Users, MessageSquare, FileImage, Loader, ShieldAlert, UsersRound,
   Sparkles, Music, Upload, Bookmark,
 } from 'lucide-react';
@@ -23,6 +23,7 @@ import Messages from './Messages';
 import Groups from './Groups';
 import Channels from './Channels';
 import Bookmarks from './Bookmarks';
+import Stickers from './Stickers';
 
 const ACCENT_COLORS = [
   '#ffffff', '#a8a8a8', '#ff6b6b', '#ffa94d',
@@ -541,6 +542,10 @@ export default function Profile({ user, onUpdate, onLogout }) {
             onClick={() => switchTab('bookmarks')} style={tab === 'bookmarks' ? { color: accent } : {}}>
             <Bookmark size={17} /> Закладки
           </button>
+          <button data-nav="stickers" className={`sidebar-item ${tab === 'stickers' ? 'active' : ''}`}
+            onClick={() => switchTab('stickers')} style={tab === 'stickers' ? { color: accent } : {}}>
+            <Sticker size={17} /> Стикеры
+          </button>
           <button data-nav="settings" className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => switchTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
             <SettingsIcon size={17} /> Настройки
@@ -1025,6 +1030,12 @@ export default function Profile({ user, onUpdate, onLogout }) {
         {tab === 'bookmarks' && (
           <div className="profile-content" style={{ maxWidth: 680, marginLeft: 'auto', marginRight: 'auto' }}>
             <Bookmarks user={user} onUserClick={(username) => navigate(`/profile/${username}`)} />
+          </div>
+        )}
+
+        {tab === 'stickers' && (
+          <div className="profile-content">
+            <Stickers user={user} />
           </div>
         )}
 

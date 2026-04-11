@@ -121,7 +121,10 @@ function MessageBubble({ m, isMine, accent, onReply, onEdit, onDelete }) {
   if (m.media_type === 'sticker') {
     return (
       <div className={`msg-bubble msg-bubble-sticker ${isMine ? 'msg-bubble-mine-sticker' : ''}`}>
-        <span className="msg-sticker">{m.content}</span>
+        {m.media
+          ? <img src={m.media} alt="sticker" className="msg-sticker-img" />
+          : <span className="msg-sticker">{m.content}</span>
+        }
         <span className="msg-bubble-time" style={{ color: 'rgba(255,255,255,0.35)' }}>{msgTime(m.created_at)}</span>
       </div>
     );
@@ -305,12 +308,18 @@ export default function Messages({ user, initialChat, onClearInitial }) {
     setTimeout(() => { el.focus(); el.setSelectionRange(start + emoji.length, start + emoji.length); }, 0);
   };
 
-  const handleStickerPick = async (emoji) => {
+  const handleStickerPick = async (sticker) => {
     setShowPicker(false);
     if (!activeUser) return;
+    // sticker can be { id, image } (real image sticker) or string (emoji)
+    const isReal = typeof sticker === 'object' && sticker.image;
     await api(`/api/messages/${activeUser.id}`, {
       method: 'POST',
-      body: JSON.stringify({ content: emoji, media: null, media_type: 'sticker' }),
+      body: JSON.stringify({
+        content: isReal ? null : sticker,
+        media: isReal ? sticker.image : null,
+        media_type: 'sticker',
+      }),
     });
   };
 

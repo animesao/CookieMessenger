@@ -29,6 +29,7 @@ const bookmarksRoutes = require('./routes/bookmarks');
 const reportsRoutes = require('./routes/reports');
 const storiesRoutes = require('./routes/stories');
 const callsRoutes = require('./routes/calls');
+const stickersRoutes = require('./routes/stickers');
 const ws = require('./ws');
 const { securityHeaders, apiLimiter, sanitizeBody } = require('./middleware/security');
 
@@ -74,6 +75,7 @@ app.use('/api/bookmarks', bookmarksRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/stories', storiesRoutes);
 app.use('/api/calls', callsRoutes);
+app.use('/api/stickers', stickersRoutes);
 
 // ── Public status endpoint (no auth) ─────────────────────────────────────────
 app.get('/api/status', (req, res) => {
