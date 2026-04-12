@@ -35,6 +35,12 @@ router.get('/online', auth, (req, res) => {
   res.json(ws.getOnlineUsers());
 });
 
+// GET /api/users/count — total user count (public for event page)
+router.get('/count', auth, (req, res) => {
+  const total = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+  res.json({ total, target: 75 });
+});
+
 // GET /api/users/search?q= — search users by username or display_name
 router.get('/search', auth, (req, res) => {
   const { q } = req.query;

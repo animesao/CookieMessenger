@@ -547,10 +547,6 @@ export default function Profile({ user, onUpdate, onLogout }) {
             onClick={() => switchTab('stickers')} style={tab === 'stickers' ? { color: accent } : {}}>
             <Sticker size={17} /> Стикеры
           </button>
-          <button data-nav="event" className={`sidebar-item sidebar-item--event ${tab === 'event' ? 'active' : ''}`}
-            onClick={() => switchTab('event')} style={tab === 'event' ? { color: '#a855f7' } : { color: '#a855f7', opacity: 0.7 }}>
-            <Sparkle size={17} /> Ивент
-          </button>
           <button data-nav="settings" className={`sidebar-item ${tab === 'settings' ? 'active' : ''}`}
             onClick={() => switchTab('settings')} style={tab === 'settings' ? { color: accent } : {}}>
             <SettingsIcon size={17} /> Настройки
@@ -561,6 +557,10 @@ export default function Profile({ user, onUpdate, onLogout }) {
               <ShieldAlert size={17} /> Админ-панель
             </button>
           )}
+          <button data-nav="event" className={`sidebar-item sidebar-item--event ${tab === 'event' ? 'active' : ''}`}
+            onClick={() => switchTab('event')}>
+            <Sparkle size={17} /> Ивент
+          </button>
         </nav>
 
         <div className="sidebar-footer">
