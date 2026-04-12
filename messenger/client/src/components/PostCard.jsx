@@ -327,6 +327,13 @@ export default function PostCard({ post, currentUserId, onLike, onDelete, onVote
         <div className="post-media"><img src={post.media} alt="post" loading="lazy" /></div>
       )}
 
+      {/* Sticker */}
+      {post.type === 'sticker' && post.media && (
+        <div className="post-sticker">
+          <img src={post.media} alt="sticker" loading="lazy" />
+        </div>
+      )}
+
       {/* Video */}
       {post.type === 'video' && post.media && (
         <div className="post-media"><video src={post.media} controls /></div>

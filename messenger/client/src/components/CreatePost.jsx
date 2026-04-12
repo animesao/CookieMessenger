@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Image, Video, BarChart2, X, Plus, Send } from 'lucide-react';
+import { Image, Video, BarChart2, X, Plus, Send, Smile } from 'lucide-react';
+import EmojiPicker from './EmojiPicker';
 
 function fileToBase64(file) {
   return new Promise(resolve => {
@@ -16,6 +17,8 @@ export default function CreatePost({ user, onPost }) {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [loading, setLoading] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef();
 
   // Mention autocomplete
   const [mentionQuery, setMentionQuery] = useState('');
@@ -116,11 +119,35 @@ export default function CreatePost({ user, onPost }) {
         onPost(data);
         setContent(''); setMedia(null); setMediaPreview(null);
         setType('text'); setPollOptions(['', '']);
-        // Reset textarea height
         if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       }
     } finally { setLoading(false); }
   };
+
+  const handleStickerPick = async (sticker) => {
+    setShowPicker(false);
+    if (loading) return;
+    const isReal = typeof sticker === 'object' && sticker.image;
+    if (!isReal) return; // only real image stickers in feed
+    setLoading(true);
+    try {
+      const res = await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ type: 'sticker', media: sticker.image }),
+      });
+      const data = await res.json();
+      if (res.ok) onPost(data);
+    } finally { setLoading(false); }
+  };
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!showPicker) return;
+    const handler = (e) => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowPicker(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPicker]);
 
   const canSubmit = type === 'poll'
     ? pollOptions.filter(o => o.trim()).length >= 2
@@ -219,6 +246,23 @@ export default function CreatePost({ user, onPost }) {
             onClick={() => setType(t => t === 'poll' ? 'text' : 'poll')} title="Опрос">
             <BarChart2 size={18} />
           </button>
+          <div style={{ position: 'relative' }}>
+            <button className={`cp-tool ${showPicker ? 'active' : ''}`}
+              onClick={() => setShowPicker(v => !v)} title="Стикер">
+              <Smile size={18} />
+            </button>
+            {showPicker && (
+              <div ref={pickerRef} style={{ position: 'absolute', bottom: '110%', left: 0, zIndex: 100 }}>
+                <EmojiPicker
+                  accent={accent}
+                  onEmoji={e => { setContent(c => c + e); setShowPicker(false); }}
+                  onSticker={handleStickerPick}
+                  onGif={() => {}}
+                  onClose={() => setShowPicker(false)}
+                />
+              </div>
+            )}
+          </div>
         </div>
         <button
           className="cp-submit"

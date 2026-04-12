@@ -7129,3 +7129,16 @@ video {
 .epicker-sticker img {
   width: 48px; height: 48px; object-fit: contain;
 }
+
+/* ── Post sticker ──────────────────────────────────────────────────────────── */
+.post-sticker {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0.25rem 0;
+}
+.post-sticker img {
+  width: 140px;
+  height: 140px;
+  object-fit: contain;
+  border-radius: 8px;
+}

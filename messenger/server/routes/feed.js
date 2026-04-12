@@ -6,6 +6,30 @@ const { validateLengths, postLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
+// ── Simple in-memory cache for feed ──────────────────────────────────────────
+const feedCache = new Map();
+const CACHE_TTL = 10_000; // 10 seconds
+
+function getCached(key) {
+  const entry = feedCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { feedCache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key, data) {
+  feedCache.set(key, { data, ts: Date.now() });
+  // Limit cache size
+  if (feedCache.size > 200) {
+    const oldest = feedCache.keys().next().value;
+    feedCache.delete(oldest);
+  }
+}
+function invalidateCache(userId) {
+  for (const key of feedCache.keys()) {
+    if (key.includes(`u${userId}`) || key.startsWith('feed_all')) feedCache.delete(key);
+  }
+}
+
 function parseMentions(text) {
   if (!text) return [];
   const matches = [...text.matchAll(/@([a-zA-Z0-9_]+)/g)];
@@ -229,15 +253,22 @@ router.get('/', auth, (req, res) => {
 
 router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, res) => {
   const { type, content, media, poll_options } = req.body;
-  if (!type || !['text', 'image', 'video', 'poll'].includes(type))
+  if (!type || !['text', 'image', 'video', 'poll', 'sticker'].includes(type))
     return res.status(400).json({ error: 'Неверный тип поста' });
-  if (type !== 'poll' && !content && !media) return res.status(400).json({ error: 'Пустой пост' });
+  if (type !== 'poll' && type !== 'sticker' && !content && !media)
+    return res.status(400).json({ error: 'Пустой пост' });
+  if (type === 'sticker' && !media)
+    return res.status(400).json({ error: 'Стикер обязателен' });
   if (type === 'poll' && (!poll_options || poll_options.length < 2))
     return res.status(400).json({ error: 'Минимум 2 варианта' });
   if (type === 'poll' && poll_options.length > 10)
     return res.status(400).json({ error: 'Максимум 10 вариантов' });
   if (type === 'poll' && poll_options.some(o => typeof o !== 'string' || o.length > 200))
     return res.status(400).json({ error: 'Вариант слишком длинный' });
+
+  // Validate media size (max 10MB base64)
+  if (media && media.startsWith('data:') && Math.ceil((media.length * 3) / 4) > 10 * 1024 * 1024)
+    return res.status(400).json({ error: 'Медиа слишком большое (макс 10MB)' });
 
   const result = db.prepare(
     'INSERT INTO posts (user_id, type, content, media) VALUES (?, ?, ?, ?)'
@@ -258,6 +289,9 @@ router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, re
   `).get(postId);
 
   const enriched = enrichPost(post, req.user.id);
+
+  // Invalidate feed cache
+  invalidateCache(req.user.id);
 
   // Broadcast new post to ALL connected users
   ws.broadcast('new_post', enriched);
@@ -366,6 +400,7 @@ router.delete('/:id', auth, (req, res) => {
   if (!post) return res.status(404).json({ error: 'Не найден' });
   if (post.user_id !== req.user.id) return res.status(403).json({ error: 'Нет доступа' });
   db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
+  invalidateCache(req.user.id);
   ws.broadcast('delete_post', { postId: parseInt(req.params.id) });
   res.json({ ok: true });
 });

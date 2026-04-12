@@ -6,6 +6,30 @@ const { validateLengths, postLimiter } = require('../middleware/security');
 
 const router = express.Router();
 
+// ── Simple in-memory cache for feed ──────────────────────────────────────────
+const feedCache = new Map();
+const CACHE_TTL = 10_000; // 10 seconds
+
+function getCached(key) {
+  const entry = feedCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { feedCache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key, data) {
+  feedCache.set(key, { data, ts: Date.now() });
+  // Limit cache size
+  if (feedCache.size > 200) {
+    const oldest = feedCache.keys().next().value;
+    feedCache.delete(oldest);
+  }
+}
+function invalidateCache(userId) {
+  for (const key of feedCache.keys()) {
+    if (key.includes(`u${userId}`) || key.startsWith('feed_all')) feedCache.delete(key);
+  }
+}
+
 function parseMentions(text) {
   if (!text) return [];
   const matches = [...text.matchAll(/@([a-zA-Z0-9_]+)/g)];
@@ -101,6 +125,18 @@ function enrichPosts(posts, userId) {
     }
   }
 
+  // Batch: VIP badge — users with 'vip' or 'owner' role
+  const authorIds = [...new Set(posts.map(p => p.user_id))];
+  let vipUsers = new Set();
+  if (authorIds.length) {
+    try {
+      const authorPh = authorIds.map(() => '?').join(',');
+      vipUsers = new Set(
+        db.prepare(`SELECT DISTINCT user_id FROM user_roles WHERE user_id IN (${authorPh}) AND role IN ('vip','owner','admin')`).all(...authorIds).map(r => r.user_id)
+      );
+    } catch {} // table may not exist yet
+  }
+
   return posts.map(post => {
     let poll = null;
     if (post.type === 'poll' && pollOptionsMap[post.id]) {
@@ -117,6 +153,7 @@ function enrichPosts(posts, userId) {
       commentsCount: commentsMap[post.id] || 0,
       views: viewsMap[post.id] || 0,
       poll,
+      hasVipBadge: vipUsers.has(post.user_id),
     };
   });
 }
@@ -128,32 +165,110 @@ function enrichPost(post, userId) {
 
 // ─── Feed ────────────────────────────────────────────────────────────────────
 
+const VALID_MODES = ['all', 'friends', 'channels', 'people'];
+
+function getFriendIds(userId) {
+  return db.prepare(`
+    SELECT CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END as friend_id
+    FROM friendships WHERE (requester_id = ? OR addressee_id = ?) AND status = 'accepted'
+  `).all(userId, userId, userId).map(r => r.friend_id);
+}
+
 router.get('/', auth, (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = 20;
   const offset = (page - 1) * limit;
+  const mode = VALID_MODES.includes(req.query.mode) ? req.query.mode : 'all';
+  const me = req.user.id;
+
+  if (mode === 'channels') {
+    const subscribedChannels = db.prepare(
+      'SELECT channel_id FROM channel_subscribers WHERE user_id = ?'
+    ).all(me).map(r => r.channel_id);
+
+    if (!subscribedChannels.length) {
+      return res.json({ posts: [], hasMore: false });
+    }
+
+    const placeholders = subscribedChannels.map(() => '?').join(',');
+    const channelPosts = db.prepare(`
+      SELECT cp.id, cp.channel_id, cp.author_id as user_id, cp.content, cp.media,
+             cp.created_at, cp.views,
+             u.username, u.display_name, u.avatar, u.accent_color, u.animated_name, u.verified
+      FROM channel_posts cp
+      JOIN users u ON u.id = cp.author_id
+      WHERE cp.channel_id IN (${placeholders})
+      ORDER BY cp.created_at DESC LIMIT ? OFFSET ?
+    `).all(...subscribedChannels, limit, offset);
+
+    const total = db.prepare(
+      `SELECT COUNT(*) as c FROM channel_posts WHERE channel_id IN (${placeholders})`
+    ).get(...subscribedChannels).c;
+
+    const normalized = channelPosts.map(cp => ({
+      ...cp,
+      type: 'text',
+      likes: 0, liked: false, commentsCount: 0, views: cp.views || 0,
+      poll: null,
+      isChannelPost: true,
+    }));
+
+    return res.json({ posts: normalized, hasMore: offset + limit < total });
+  }
+
+  let whereClause = '';
+  let params = [];
+
+  if (mode === 'friends') {
+    const friendIds = getFriendIds(me);
+    if (!friendIds.length) return res.json({ posts: [], hasMore: false });
+    const ph = friendIds.map(() => '?').join(',');
+    whereClause = `WHERE p.user_id IN (${ph})`;
+    params = friendIds;
+  } else if (mode === 'people') {
+    const friendIds = getFriendIds(me);
+    if (friendIds.length) {
+      const ph = friendIds.map(() => '?').join(',');
+      whereClause = `WHERE p.user_id NOT IN (${ph}) AND p.user_id != ?`;
+      params = [...friendIds, me];
+    } else {
+      whereClause = 'WHERE p.user_id != ?';
+      params = [me];
+    }
+  }
 
   const posts = db.prepare(`
     SELECT p.*, u.username, u.display_name, u.avatar, u.accent_color, u.animated_name, u.verified
     FROM posts p JOIN users u ON u.id = p.user_id
+    ${whereClause}
     ORDER BY p.created_at DESC LIMIT ? OFFSET ?
-  `).all(limit, offset);
+  `).all(...params, limit, offset);
 
-  const total = db.prepare('SELECT COUNT(*) as c FROM posts').get().c;
-  res.json({ posts: enrichPosts(posts, req.user.id), hasMore: offset + limit < total });
+  const total = db.prepare(
+    `SELECT COUNT(*) as c FROM posts p ${whereClause}`
+  ).get(...params).c;
+
+  res.json({ posts: enrichPosts(posts, me), hasMore: offset + limit < total });
 });
 
 router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, res) => {
   const { type, content, media, poll_options } = req.body;
-  if (!type || !['text', 'image', 'video', 'poll'].includes(type))
+  if (!type || !['text', 'image', 'video', 'poll', 'sticker'].includes(type))
     return res.status(400).json({ error: 'Неверный тип поста' });
-  if (type !== 'poll' && !content && !media) return res.status(400).json({ error: 'Пустой пост' });
+  if (type !== 'poll' && type !== 'sticker' && !content && !media)
+    return res.status(400).json({ error: 'Пустой пост' });
+  if (type === 'sticker' && !media)
+    return res.status(400).json({ error: 'Стикер обязателен' });
   if (type === 'poll' && (!poll_options || poll_options.length < 2))
     return res.status(400).json({ error: 'Минимум 2 варианта' });
   if (type === 'poll' && poll_options.length > 10)
     return res.status(400).json({ error: 'Максимум 10 вариантов' });
   if (type === 'poll' && poll_options.some(o => typeof o !== 'string' || o.length > 200))
     return res.status(400).json({ error: 'Вариант слишком длинный' });
+
+  // Validate media size (max 10MB base64)
+  if (media && media.startsWith('data:') && Math.ceil((media.length * 3) / 4) > 10 * 1024 * 1024)
+    return res.status(400).json({ error: 'Медиа слишком большое (макс 10MB)' });
 
   const result = db.prepare(
     'INSERT INTO posts (user_id, type, content, media) VALUES (?, ?, ?, ?)'
@@ -174,6 +289,9 @@ router.post('/', auth, postLimiter, validateLengths({ content: 2000 }), (req, re
   `).get(postId);
 
   const enriched = enrichPost(post, req.user.id);
+
+  // Invalidate feed cache
+  invalidateCache(req.user.id);
 
   // Broadcast new post to ALL connected users
   ws.broadcast('new_post', enriched);
@@ -282,6 +400,7 @@ router.delete('/:id', auth, (req, res) => {
   if (!post) return res.status(404).json({ error: 'Не найден' });
   if (post.user_id !== req.user.id) return res.status(403).json({ error: 'Нет доступа' });
   db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
+  invalidateCache(req.user.id);
   ws.broadcast('delete_post', { postId: parseInt(req.params.id) });
   res.json({ ok: true });
 });
