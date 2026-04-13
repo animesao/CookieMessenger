@@ -498,7 +498,8 @@ body::after {
   gap: 0.3rem;
   text-align: center;
 }
-.st-stat-icon { font-size: 1.3rem; line-height: 1; }
+.st-stat-icon { color: #555; flex-shrink: 0; }
+.st-icon-green { color: #69db7c; }
 .st-stat-val { font-size: 1.15rem; font-weight: 700; color: #fff; line-height: 1; }
 .st-stat-label { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -529,7 +530,7 @@ body::after {
 .st-service:last-child { border-bottom: none; }
 .st-service:hover { background: rgba(255,255,255,0.02); }
 .st-service-left { display: flex; align-items: center; gap: 0.75rem; }
-.st-service-icon { font-size: 1.1rem; width: 28px; text-align: center; }
+.st-service-icon { color: #555; display: flex; align-items: center; width: 28px; justify-content: center; flex-shrink: 0; }
 .st-service-name { font-size: 0.9rem; font-weight: 500; color: #e0e0e0; }
 .st-service-badge {
   display: flex; align-items: center; gap: 0.4rem;

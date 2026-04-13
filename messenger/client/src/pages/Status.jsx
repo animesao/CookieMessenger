@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Clock, Users, MessageSquare, FileText, Zap, Plug, Database, Image, Activity, User } from 'lucide-react';
 
 function formatUptime(seconds) {
   if (!seconds && seconds !== 0) return '—';
@@ -83,27 +84,27 @@ export default function Status() {
         {/* Stats grid */}
         <div className="st-stats">
           <div className="st-stat">
-            <span className="st-stat-icon">⏱</span>
+            <Clock size={20} className="st-stat-icon" />
             <span className="st-stat-val">{formatUptime(liveUptime)}</span>
             <span className="st-stat-label">Аптайм</span>
           </div>
           <div className="st-stat">
-            <span className="st-stat-icon">🟢</span>
+            <Activity size={20} className="st-stat-icon st-icon-green" />
             <span className="st-stat-val">{data?.onlineUsers ?? '—'}</span>
             <span className="st-stat-label">Онлайн</span>
           </div>
           <div className="st-stat">
-            <span className="st-stat-icon">👥</span>
+            <User size={20} className="st-stat-icon" />
             <span className="st-stat-val">{data?.totalUsers ?? '—'}</span>
             <span className="st-stat-label">Пользователей</span>
           </div>
           <div className="st-stat">
-            <span className="st-stat-icon">💬</span>
+            <MessageSquare size={20} className="st-stat-icon" />
             <span className="st-stat-val">{data?.totalMessages ?? '—'}</span>
             <span className="st-stat-label">Сообщений</span>
           </div>
           <div className="st-stat">
-            <span className="st-stat-icon">📝</span>
+            <FileText size={20} className="st-stat-icon" />
             <span className="st-stat-val">{data?.totalPosts ?? '—'}</span>
             <span className="st-stat-label">Постов</span>
           </div>
@@ -122,8 +123,13 @@ export default function Status() {
               const ok = s.status === 'operational';
               return (
                 <div key={s.id} className="st-service">
-                  <div className="st-service-left">
-                    <span className="st-service-icon">{SERVICE_ICONS[s.id] || '⚙️'}</span>
+            <div className="st-service-left">
+                    <span className="st-service-icon">
+                      {s.id === 'api' ? <Zap size={16} /> :
+                       s.id === 'ws'  ? <Plug size={16} /> :
+                       s.id === 'db'  ? <Database size={16} /> :
+                       <Image size={16} />}
+                    </span>
                     <span className="st-service-name">{s.name}</span>
                   </div>
                   <div className={`st-service-badge ${ok ? 'st-badge-ok' : 'st-badge-err'}`}>
