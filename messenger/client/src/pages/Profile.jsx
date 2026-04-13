@@ -472,6 +472,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
             <a href="/terms" className="sidebar-footer-link">Условия использования</a>
             <a href="/privacy" className="sidebar-footer-link">Конфиденциальность</a>
             <a href="/cookies" className="sidebar-footer-link">Политика Cookies</a>
+            <a href="https://discord.gg/yWMf2HfRbH" target="_blank" rel="noopener noreferrer" className="sidebar-footer-link sidebar-discord-link">Discord сервер</a>
             <span className="sidebar-footer-copy">© 2026 RLC</span>
           </div>
           <button className="sidebar-logout" onClick={onLogout}>
@@ -568,6 +569,7 @@ export default function Profile({ user, onUpdate, onLogout }) {
           <a href="/terms" className="sidebar-footer-link">Условия использования</a>
           <a href="/privacy" className="sidebar-footer-link">Конфиденциальность</a>
           <a href="/cookies" className="sidebar-footer-link">Политика Cookies</a>
+          <a href="https://discord.gg/yWMf2HfRbH" target="_blank" rel="noopener noreferrer" className="sidebar-footer-link sidebar-discord-link">Discord сервер</a>
           <span className="sidebar-footer-copy">© 2026 RLC</span>
         </div>
         <button className="sidebar-logout" onClick={onLogout}>

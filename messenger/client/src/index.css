@@ -7431,3 +7431,11 @@ video {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
+
+/* ── Discord link ──────────────────────────────────────────────────────────── */
+.sidebar-discord-link {
+  color: #5865f2 !important;
+}
+.sidebar-discord-link:hover {
+  color: #7983f5 !important;
+}
