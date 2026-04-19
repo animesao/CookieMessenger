@@ -277,6 +277,25 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS channel_poll_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES channel_posts(id) ON DELETE CASCADE
+  )
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS channel_poll_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    option_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    UNIQUE(option_id, user_id),
+    FOREIGN KEY (option_id) REFERENCES channel_poll_options(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+
 // Bookmarks
 db.exec(`
   CREATE TABLE IF NOT EXISTS bookmarks (

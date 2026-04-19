@@ -222,18 +222,20 @@ router.get('/:id/posts', auth, (req, res) => {
   // Attach poll data
   const enriched = posts.map(post => {
     if (post.media_type !== 'poll') return post;
-    const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(post.id);
-    const userVote = db.prepare(`
-      SELECT cpo.option_id FROM channel_poll_votes cpv
-      JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
-      WHERE cpo.post_id = ? AND cpv.user_id = ?
-    `).get(post.id, req.user.id);
-    const poll = options.map(o => ({
-      ...o,
-      votes: db.prepare('SELECT COUNT(*) as c FROM channel_poll_votes WHERE option_id = ?').get(o.id).c,
-      voted: userVote?.option_id === o.id,
-    }));
-    return { ...post, poll };
+    try {
+      const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(post.id);
+      const userVote = db.prepare(`
+        SELECT cpo.option_id FROM channel_poll_votes cpv
+        JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
+        WHERE cpo.post_id = ? AND cpv.user_id = ?
+      `).get(post.id, req.user.id);
+      const poll = options.map(o => ({
+        ...o,
+        votes: db.prepare('SELECT COUNT(*) as c FROM channel_poll_votes WHERE option_id = ?').get(o.id).c,
+        voted: userVote?.option_id === o.id,
+      }));
+      return { ...post, poll };
+    } catch { return post; }
   });
 
   const total = db.prepare('SELECT COUNT(*) as c FROM channel_posts WHERE channel_id = ?').get(channel.id).c;
