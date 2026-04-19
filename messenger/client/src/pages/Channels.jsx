@@ -469,7 +469,7 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
         <div onClick={() => channel.description && setShowDesc(v => !v)} style={{ cursor: channel.description ? 'pointer' : 'default' }}>
           <ChannelAvatar channel={channel} size={36} />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }} onClick={() => channel.description && setShowDesc(v => !v)} style={{ flex: 1, minWidth: 0, cursor: channel.description ? 'pointer' : 'default' }}>
+        <div style={{ flex: 1, minWidth: 0, cursor: channel.description ? 'pointer' : 'default' }} onClick={() => channel.description && setShowDesc(v => !v)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="msg-chat-name">{channel.name}</span>
             {channel.type === 'private' ? <Lock size={12} style={{ color: '#666' }} /> : <Globe size={12} style={{ color: '#666' }} />}
@@ -608,7 +608,6 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
                   return (
                     <button key={opt.id}
                       className={`ch-poll-opt ${opt.voted ? 'ch-poll-voted' : ''} ${hasVoted ? 'ch-poll-revealed' : ''}`}
-                      disabled={hasVoted}
                       onClick={async () => {
                         const res = await api(`/api/channels/${channel.id}/posts/${post.id}/poll/${opt.id}`, { method: 'POST' });
                         if (res.ok) {
