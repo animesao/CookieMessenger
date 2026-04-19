@@ -282,6 +282,16 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
   };
 
   const msgTime = (str) => new Date(str + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const msgDayKey = (str) => { const d = new Date(str + 'Z'); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+  const msgDateLabel = (str) => {
+    const d = new Date(str + 'Z');
+    const today = new Date();
+    const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+    const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (same(d, today)) return 'Сегодня';
+    if (same(d, yesterday)) return 'Вчера';
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+  };
 
   return (
     <div className="grp-chat">
@@ -314,19 +324,27 @@ function GroupChat({ group: initialGroup, user, onBack, onLeave }) {
             {messages.map((m, i) => {
               const isMine = m.sender_id === user.id;
               const showName = !isMine && (i === 0 || messages[i-1]?.sender_id !== m.sender_id);
+              const showDate = i === 0 || msgDayKey(m.created_at) !== msgDayKey(messages[i-1].created_at);
               return (
-                <div key={m.id} className={`msg-row ${isMine ? 'msg-row-mine' : 'msg-row-theirs'}`}>
-                  {!isMine && <div style={{ width: 28, flexShrink: 0 }}>{showName && <Avatar src={m.avatar} name={m.display_name || m.username} accent={m.accent_color} size={28} />}</div>}
-                  <div>
-                    {showName && !isMine && <div style={{ fontSize: 11, color: m.accent_color || '#888', marginBottom: 2, marginLeft: 4 }}>{m.display_name || m.username}</div>}
-                    <div className={`msg-bubble ${isMine ? 'msg-bubble-mine' : 'msg-bubble-theirs'}`} style={isMine && !m.media ? { background: accent, color: '#000' } : {}}>
-                      {m.media_type === 'sticker' && m.media && <img src={m.media} alt="sticker" className="msg-sticker-img" />}
-                      {m.media_type === 'sticker' && !m.media && m.content && <span className="msg-sticker">{m.content}</span>}
-                      {m.media && m.media_type === 'image' && <img src={m.media} alt="img" className="msg-media-img" onClick={() => setLightboxSrc(m.media)} />}
-                      {m.media && m.media_type === 'video' && <video src={m.media} controls className="msg-media-video" />}
-                      {m.media && m.media_type === 'gif' && <img src={m.media} alt="gif" className="msg-media-img" style={{ borderRadius: 12 }} />}
-                      {m.content && m.media_type !== 'sticker' && <span className="msg-bubble-text">{m.content}</span>}
-                      <span className="msg-bubble-time" style={isMine && !m.media ? { color: 'rgba(0,0,0,0.45)' } : {}}>{msgTime(m.created_at)}</span>
+                <div key={m.id}>
+                  {showDate && (
+                    <div className="msg-date-divider">
+                      <span>{msgDateLabel(m.created_at)}</span>
+                    </div>
+                  )}
+                  <div className={`msg-row ${isMine ? 'msg-row-mine' : 'msg-row-theirs'}`}>
+                    {!isMine && <div style={{ width: 28, flexShrink: 0 }}>{showName && <Avatar src={m.avatar} name={m.display_name || m.username} accent={m.accent_color} size={28} />}</div>}
+                    <div>
+                      {showName && !isMine && <div style={{ fontSize: 11, color: m.accent_color || '#888', marginBottom: 2, marginLeft: 4 }}>{m.display_name || m.username}</div>}
+                      <div className={`msg-bubble ${isMine ? 'msg-bubble-mine' : 'msg-bubble-theirs'}`} style={isMine && !m.media ? { background: accent, color: '#000' } : {}}>
+                        {m.media_type === 'sticker' && m.media && <img src={m.media} alt="sticker" className="msg-sticker-img" />}
+                        {m.media_type === 'sticker' && !m.media && m.content && <span className="msg-sticker">{m.content}</span>}
+                        {m.media && m.media_type === 'image' && <img src={m.media} alt="img" className="msg-media-img" onClick={() => setLightboxSrc(m.media)} />}
+                        {m.media && m.media_type === 'video' && <video src={m.media} controls className="msg-media-video" />}
+                        {m.media && m.media_type === 'gif' && <img src={m.media} alt="gif" className="msg-media-img" style={{ borderRadius: 12 }} />}
+                        {m.content && m.media_type !== 'sticker' && <span className="msg-bubble-text">{m.content}</span>}
+                        <span className="msg-bubble-time" style={isMine && !m.media ? { color: 'rgba(0,0,0,0.45)' } : {}}>{msgTime(m.created_at)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

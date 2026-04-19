@@ -7460,3 +7460,28 @@ video {
 .sidebar-discord-link:hover {
   color: #7983f5 !important;
 }
+
+/* ── Message date divider ──────────────────────────────────────────────────── */
+.msg-date-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.5rem;
+  user-select: none;
+}
+.msg-date-divider::before,
+.msg-date-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #1e1e1e;
+}
+.msg-date-divider span {
+  font-size: 0.7rem;
+  color: #444;
+  white-space: nowrap;
+  padding: 0.2rem 0.6rem;
+  background: rgba(17,17,17,0.8);
+  border: 1px solid #1e1e1e;
+  border-radius: 20px;
+}

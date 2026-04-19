@@ -18,6 +18,25 @@ function msgTime(str) {
   return new Date(str + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+function msgDateLabel(str) {
+  const d = new Date(str + 'Z');
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  if (isSameDay(d, today)) return 'Сегодня';
+  if (isSameDay(d, yesterday)) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+}
+
+function msgDayKey(str) {
+  const d = new Date(str + 'Z');
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 function fileToBase64(file) {
   return new Promise(resolve => {
     const reader = new FileReader();
@@ -532,15 +551,23 @@ export default function Messages({ user, initialChat, onClearInitial }) {
               {messages.map((m, i) => {
                 const isMine = m.sender_id === user.id;
                 const showAvatar = !isMine && (i === 0 || messages[i - 1]?.sender_id !== m.sender_id);
+                const showDate = i === 0 || msgDayKey(m.created_at) !== msgDayKey(messages[i - 1].created_at);
                 return (
-                  <div key={m.id} className={`msg-row ${isMine ? 'msg-row-mine' : 'msg-row-theirs'}`}>
-                    {!isMine && (
-                      <div style={{ width: 28, flexShrink: 0 }}>
-                        {showAvatar && <Avatar user={activeUser} size={28} />}
+                  <div key={m.id}>
+                    {showDate && (
+                      <div className="msg-date-divider">
+                        <span>{msgDateLabel(m.created_at)}</span>
                       </div>
                     )}
-                    <MessageBubble m={m} isMine={isMine} accent={accent}
-                      onReply={setReplyTo} onEdit={handleEditMsg} onDelete={handleDeleteMsg} />
+                    <div className={`msg-row ${isMine ? 'msg-row-mine' : 'msg-row-theirs'}`}>
+                      {!isMine && (
+                        <div style={{ width: 28, flexShrink: 0 }}>
+                          {showAvatar && <Avatar user={activeUser} size={28} />}
+                        </div>
+                      )}
+                      <MessageBubble m={m} isMine={isMine} accent={accent}
+                        onReply={setReplyTo} onEdit={handleEditMsg} onDelete={handleDeleteMsg} />
+                    </div>
                   </div>
                 );
               })}
