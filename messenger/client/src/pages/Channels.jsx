@@ -608,12 +608,15 @@ function ChannelView({ channel: initialChannel, user, onBack }) {
                   return (
                     <button key={opt.id}
                       className={`ch-poll-opt ${opt.voted ? 'ch-poll-voted' : ''} ${hasVoted ? 'ch-poll-revealed' : ''}`}
+                      disabled={hasVoted}
                       onClick={async () => {
-                        if (hasVoted) return;
                         const res = await api(`/api/channels/${channel.id}/posts/${post.id}/poll/${opt.id}`, { method: 'POST' });
                         if (res.ok) {
                           const updated = await res.json();
                           setPosts(prev => prev.map(p => p.id === post.id ? { ...p, poll: updated } : p));
+                        } else {
+                          const err = await res.json().catch(() => ({}));
+                          console.error('Poll vote error:', err.error);
                         }
                       }}
                     >
