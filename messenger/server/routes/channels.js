@@ -297,44 +297,49 @@ router.post('/:id/posts', auth, postLimiter, validateLengths({ content: 4000 }),
 
 // ── POST /api/channels/:id/posts/:postId/poll/:optionId — vote ───────────────
 router.post('/:id/posts/:postId/poll/:optionId', auth, (req, res) => {
-  const optionId = parseInt(req.params.optionId);
-  const postId = parseInt(req.params.postId);
-  if (isNaN(optionId) || isNaN(postId)) return res.status(400).json({ error: 'Неверный ID' });
+  try {
+    const optionId = parseInt(req.params.optionId);
+    const postId = parseInt(req.params.postId);
+    if (isNaN(optionId) || isNaN(postId)) return res.status(400).json({ error: 'Неверный ID' });
 
-  const option = db.prepare('SELECT * FROM channel_poll_options WHERE id = ? AND post_id = ?').get(optionId, postId);
-  if (!option) return res.status(404).json({ error: 'Вариант не найден' });
+    const option = db.prepare('SELECT * FROM channel_poll_options WHERE id = ? AND post_id = ?').get(optionId, postId);
+    if (!option) return res.status(404).json({ error: 'Вариант не найден' });
 
-  const existing = db.prepare(`
-    SELECT cpv.* FROM channel_poll_votes cpv
-    JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
-    WHERE cpo.post_id = ? AND cpv.user_id = ?
-  `).get(postId, req.user.id);
+    const existing = db.prepare(`
+      SELECT cpv.* FROM channel_poll_votes cpv
+      JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
+      WHERE cpo.post_id = ? AND cpv.user_id = ?
+    `).get(postId, req.user.id);
 
-  if (existing) {
-    if (existing.option_id === optionId) {
-      db.prepare('DELETE FROM channel_poll_votes WHERE option_id = ? AND user_id = ?').run(optionId, req.user.id);
+    if (existing) {
+      if (existing.option_id === optionId) {
+        db.prepare('DELETE FROM channel_poll_votes WHERE option_id = ? AND user_id = ?').run(optionId, req.user.id);
+      } else {
+        db.prepare('DELETE FROM channel_poll_votes WHERE option_id = ? AND user_id = ?').run(existing.option_id, req.user.id);
+        db.prepare('INSERT INTO channel_poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
+      }
     } else {
-      db.prepare('DELETE FROM channel_poll_votes WHERE option_id = ? AND user_id = ?').run(existing.option_id, req.user.id);
       db.prepare('INSERT INTO channel_poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
     }
-  } else {
-    db.prepare('INSERT INTO channel_poll_votes (option_id, user_id) VALUES (?, ?)').run(optionId, req.user.id);
+
+    const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(postId);
+    const userVote = db.prepare(`
+      SELECT cpo.option_id FROM channel_poll_votes cpv
+      JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
+      WHERE cpo.post_id = ? AND cpv.user_id = ?
+    `).get(postId, req.user.id);
+
+    const poll = options.map(o => ({
+      ...o,
+      votes: db.prepare('SELECT COUNT(*) as c FROM channel_poll_votes WHERE option_id = ?').get(o.id).c,
+      voted: userVote?.option_id === o.id,
+    }));
+
+    res.json(poll);
+  } catch (err) {
+    console.error('[channel poll vote]', err.message);
+    res.status(500).json({ error: err.message });
   }
-
-  const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(postId);
-  const userVote = db.prepare(`
-    SELECT cpo.option_id FROM channel_poll_votes cpv
-    JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
-    WHERE cpo.post_id = ? AND cpv.user_id = ?
-  `).get(postId, req.user.id);
-
-  const poll = options.map(o => ({
-    ...o,
-    votes: db.prepare('SELECT COUNT(*) as c FROM channel_poll_votes WHERE option_id = ?').get(o.id).c,
-    voted: userVote?.option_id === o.id,
-  }));
-
-  res.json(poll);
 });
 
 // ── DELETE /api/channels/:id/posts/:postId ────────────────────────────────────
