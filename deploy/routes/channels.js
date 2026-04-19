@@ -225,7 +225,7 @@ router.get('/:id/posts', auth, (req, res) => {
     try {
       const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(post.id);
       const userVote = db.prepare(`
-        SELECT cpo.option_id FROM channel_poll_votes cpv
+        SELECT cpv.option_id FROM channel_poll_votes cpv
         JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
         WHERE cpo.post_id = ? AND cpv.user_id = ?
       `).get(post.id, req.user.id);
@@ -324,7 +324,7 @@ router.post('/:id/posts/:postId/poll/:optionId', auth, (req, res) => {
 
     const options = db.prepare('SELECT * FROM channel_poll_options WHERE post_id = ?').all(postId);
     const userVote = db.prepare(`
-      SELECT cpo.option_id FROM channel_poll_votes cpv
+      SELECT cpv.option_id FROM channel_poll_votes cpv
       JOIN channel_poll_options cpo ON cpo.id = cpv.option_id
       WHERE cpo.post_id = ? AND cpv.user_id = ?
     `).get(postId, req.user.id);
