@@ -650,8 +650,13 @@ export default function Profile({ user, onUpdate, onLogout }) {
                   <div className="profile-stat">
                     <span className="profile-stat-num" style={{ color: accent }}>{stats.following}</span>
                     <span className="profile-stat-label">подписок</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </main>
-      </div>
-    );
+        )}
+      </main>
+    </div>
+  );
 }
