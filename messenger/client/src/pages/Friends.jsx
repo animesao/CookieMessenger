@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, UserPlus, UserCheck, UserX, Users, Clock, Check, X } from 'lucide-react';
+import { Search, UserPlus, UserCheck, UserX, Users, Clock, Check, X, Phone, Video } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 
 function api(path, opts = {}) {
@@ -79,6 +79,12 @@ function FriendCard({ user, friendship, onAction, onMessage, onProfile }) {
           <>
             <button className="fr-btn fr-btn-msg" onClick={() => onMessage(user)} title="Написать">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </button>
+            <button className="fr-btn fr-btn-call" onClick={() => window.__startCall?.(user, 'audio')} title="Аудио звонок">
+              <Phone size={15} />
+            </button>
+            <button className="fr-btn fr-btn-call" onClick={() => window.__startCall?.(user, 'video')} title="Видео звонок">
+              <Video size={15} />
             </button>
             <button className="fr-btn fr-btn-remove" onClick={() => act('remove')} disabled={loading} title="Удалить из друзей">
               <UserX size={15} />

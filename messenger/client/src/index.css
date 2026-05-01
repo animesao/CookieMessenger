@@ -3501,6 +3501,28 @@ body::after {
 }
 .msg-call-btn:hover { color: #aaa; border-color: #2e2e2e; background: #161616; }
 
+/* ── Call buttons in UserProfile ── */
+.up-call-btn {
+  width: 34px;
+  height: 34px;
+  background: transparent;
+  border: 1px solid #1e1e1e;
+  border-radius: 8px;
+  color: #444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.up-call-btn:hover { color: #aaa; border-color: #2e2e2e; background: #161616; }
+
+/* ── Call buttons in Friends page ── */
+.fr-btn-call {
+  color: #444;
+}
+.fr-btn-call:hover { color: #4dabf7; border-color: #2e2e2e; background: #161616; }
+
 /* ── Profile stats bar ── */
 .profile-stats-bar {
   display: flex;
@@ -5322,6 +5344,10 @@ body::after {
 [data-theme="light"] .msg-send-btn:disabled { background: var(--bg4) !important; color: var(--text4) !important; }
 [data-theme="light"] .msg-call-btn { color: var(--text3) !important; border-color: var(--border2) !important; background: transparent !important; }
 [data-theme="light"] .msg-call-btn:hover { background: var(--bg4) !important; color: var(--text2) !important; }
+[data-theme="light"] .up-call-btn { color: var(--text3) !important; border-color: var(--border2) !important; background: transparent !important; }
+[data-theme="light"] .up-call-btn:hover { background: var(--bg4) !important; color: var(--text2) !important; }
+[data-theme="light"] .fr-btn-call { color: var(--text3) !important; border-color: var(--border2) !important; background: transparent !important; }
+[data-theme="light"] .fr-btn-call:hover { background: var(--bg4) !important; color: #4dabf7 !important; }
 [data-theme="light"] .msg-chat-empty,
 [data-theme="light"] .msg-empty-convos { color: var(--text3) !important; }
 [data-theme="light"] .msg-media-preview { background: var(--bg2) !important; border-color: var(--border) !important; }

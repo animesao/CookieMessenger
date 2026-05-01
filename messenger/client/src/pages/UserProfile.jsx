@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, UserPlus, UserCheck, Users, FileText, MessageSquare, Shield } from 'lucide-react';
+import { ArrowLeft, UserPlus, UserCheck, Users, FileText, MessageSquare, Shield, Phone, Video } from 'lucide-react';
 import PostCard from '../components/PostCard';
 import ProfileMusicPlayer from '../components/ProfileMusicPlayer';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -171,6 +171,12 @@ export default function UserProfile({ username, currentUser, onBack, onOpenChat 
             <div className="up-actions">
               <button className="up-msg-btn" onClick={() => onOpenChat?.(profile)}>
                 <MessageSquare size={14} /> Написать
+              </button>
+              <button className="up-call-btn" title="Аудио звонок" onClick={() => window.__startCall?.(profile, 'audio')}>
+                <Phone size={14} />
+              </button>
+              <button className="up-call-btn" title="Видео звонок" onClick={() => window.__startCall?.(profile, 'video')}>
+                <Video size={14} />
               </button>
               <button
                 className={`up-follow-btn ${profile.isFollowing ? 'up-follow-btn--active' : ''}`}
